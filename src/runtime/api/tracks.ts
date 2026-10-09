@@ -61,15 +61,15 @@ export const POST: APIRoute = async (context) => {
 		kind,
 		srclang,
 		label,
-		storageKey: storageKeyFor(id, 'vtt', new Date(), keyToken()),
+		storageKey: storageKeyFor(id, 'vtt', keyToken()),
 	};
-	await writeFileAt(track.storageKey, cleaned.vtt);
+	await writeFileAt(row.folderId ?? null, track.storageKey, cleaned.vtt);
 	try {
 		const updated = await updateRow(id, { tracks: JSON.stringify([...tracks, track]) });
 		if (!updated) throw new Error('item disappeared');
 		return json({ item: toItem(updated) }, 201);
 	} catch (cause) {
-		await removeFiles([track.storageKey]);
+		await removeFiles(row.folderId ?? null, [track.storageKey]);
 		console.error('[medialibrary] adding captions failed', cause);
 		return error(500, 'Adding captions failed');
 	}

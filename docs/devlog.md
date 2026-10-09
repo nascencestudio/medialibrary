@@ -4,6 +4,38 @@ Newest first. What changed, what was learned, what's next.
 
 ---
 
+## 2026-10-09: Folders (0.2.0)
+
+**Request:** folders for sorting media (Drupal's Media Library has none), kept in sync with the
+file system. The user chose "mirror disk, stable URLs" after the trade-offs (URLs, public folder
+names, user-typed paths, atomicity, one-way sync). [ADR 0100](decisions/0100-folders.md).
+
+### Done
+- `folders.ts` (pure): names, directory names (safe slugs), tree rules (depth 8, 1000 folders,
+  no cycles). `disk.ts`: the layout and `syncFiles` (find files by unique name, move into place,
+  remove stray empty directories). `keys.ts`: keys are plain file names; `YYYY/MM/` keys accepted.
+- Runtime: `NascenceMediaFolders` table + `folderId` column; folders-store (create, rename, move,
+  delete-if-empty, move items) with an in-process lock; `sync.ts` (startup, after failures, on a
+  miss at most once a minute); `/files/<file name>` resolved through the database; API
+  `/folders`, `/folders/:id`, `/move`, `folder=` on the item list and uploads.
+- UI: folder list (drop target), folder bar (breadcrumb, new/rename/move/delete), Folder field,
+  multiple selection, uploads into the current folder; the picker browses folders.
+- Source maps embed their sources (`inlineSources`): the package doesn't ship `src/`, and Vite
+  warned about every module in dev.
+- 0.2.0. Tests: 237 unit (folder names incl. `..`, `.tmp`, reserved and bidi characters; disk
+  layer on a temp dir incl. interrupted moves); Tapestry playground: new `media-folders` e2e suite
+  (10 steps, checks the disk and URLs), a11y state with a folder selected; all 24 suites pass.
+- Migration checked on real dev data: 6 files moved out of `2026/10`, keys rewritten, old URLs serve.
+
+### Learned
+- A dragged thumbnail `<img>` carries the image as a file: the upload drop zone uploaded copies.
+- The playground's e2e harness used a fixed Chrome debugging port, so every run since 2026-10-07
+  silently reused one leftover browser and its cached scripts (stale code looked like a bug). It
+  now uses a port Chrome picks itself (the playground's devlog has details).
+
+### Next
+- Release 0.2.0 (staged; approve on npm), then switch the playground to it.
+
 ## 2026-10-09: Releases are staged
 
 - 0.1.0 published (first release with a bootstrap token). Trusted publisher added with allowed

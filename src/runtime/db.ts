@@ -1,20 +1,24 @@
 /// <reference types="studiocms/v/types" />
 /// <reference path="../virtual.d.ts" />
 /**
- * Media item records, in the `NascenceMediaItems` table of StudioCMS's
- * database. The table is created on first use (Kysely schema builder, so it
- * works on every database StudioCMS supports). Server only.
+ * Media item and folder records, in the `NascenceMediaItems` and
+ * `NascenceMediaFolders` tables of StudioCMS's database. The tables are created
+ * on first use (Kysely schema builder, so it works on every database StudioCMS
+ * supports). Server only.
  */
 
 import { SDKCoreJs } from 'studiocms:sdk';
 import config from 'virtual:medialibrary/config';
 import { sql } from 'kysely';
+import type { FolderRecord } from '../folders.js';
+import { fileNameOf } from '../keys.js';
 import { decodeTags, encodeTags, type FocalPoint, normalizeFocalPoint } from '../meta.js';
 import { remoteVideoFrom } from '../remote.js';
 import { parseTracks, parseVariants, type StoredTrack, type StoredVariant, srcsetFor } from '../stored.js';
 import type { MediaItem, MediaKind, RemoteProvider } from '../types.js';
 
 export const TABLE = 'NascenceMediaItems';
+export const FOLDERS_TABLE = 'NascenceMediaFolders';
 
 export interface MediaRow {
 	id: string;
@@ -40,6 +44,13 @@ export interface MediaRow {
 	tracks: string;
 	/** JSON StoredVariant[] (see stored.ts). */
 	variants: string;
+	/** The folder the item is in (null: the top level). */
+	folderId: string | null;
+}
+
+export interface FolderRow extends FolderRecord {
+	createdAt: string;
+	updatedAt: string;
 }
 
 /** Columns added after the first release, added to existing tables on first use. */
@@ -49,6 +60,7 @@ const ADDED_COLUMNS: Array<[string, string, (c: Column) => Column]> = [
 	['focalY', 'integer', (c) => c],
 	['tracks', 'text', (c) => c.notNull().defaultTo('[]')],
 	['variants', 'text', (c) => c.notNull().defaultTo('[]')],
+	['folderId', 'varchar(32)', (c) => c],
 ];
 
 // Our table isn't part of StudioCMS's typed schema, so queries are untyped here.
@@ -88,6 +100,19 @@ export function ensureTable(): Promise<void> {
 			.execute();
 		await db().schema.createIndex(`${TABLE}_createdAt`).ifNotExists().on(TABLE).column('createdAt').execute();
 		await addMissingColumns();
+		await db().schema.createIndex(`${TABLE}_folderId`).ifNotExists().on(TABLE).column('folderId').execute();
+		await db()
+			.schema.createTable(FOLDERS_TABLE)
+			.ifNotExists()
+			.addColumn('id', 'varchar(32)', (c: Column) => c.primaryKey())
+			.addColumn('parentId', 'varchar(32)')
+			.addColumn('name', 'varchar(255)', (c: Column) => c.notNull())
+			.addColumn('slug', 'varchar(64)', (c: Column) => c.notNull())
+			.addColumn('createdAt', 'varchar(32)', (c: Column) => c.notNull())
+			.addColumn('updatedAt', 'varchar(32)', (c: Column) => c.notNull())
+			.execute();
+		// Files stored before folders get moved into place (once per process, in the background).
+		void import('./sync.js').then((sync) => sync.startupSync());
 	})().catch((cause) => {
 		ready = null;
 		throw cause;
@@ -115,7 +140,8 @@ async function addMissingColumns(): Promise<void> {
 	}
 }
 
-export const publicUrl = (storageKey: string) => `${config.publicPath}/${storageKey}`;
+/** A stored file's URL: its file name only, so moving the item between folders never changes it. */
+export const publicUrl = (storageKey: string) => `${config.publicPath}/${fileNameOf(storageKey)}`;
 
 /** Stored caption tracks and image variants of a row (validated). */
 export const tracksOf = (row: Pick<MediaRow, 'tracks'>): StoredTrack[] => parseTracks(row.tracks);
@@ -176,6 +202,7 @@ export function toItem(row: MediaRow): MediaItem {
 				: [],
 		variants,
 		srcset: row.kind === 'image' ? srcsetFor(variants, { url, width }) : null,
+		folderId: row.folderId ?? null,
 	};
 }
 
@@ -213,6 +240,8 @@ export interface ListQuery {
 	search?: string;
 	/** One (normalized) tag. */
 	tag?: string;
+	/** Only items directly in this folder (null: the top level; undefined: every folder). */
+	folder?: string | null;
 	offset?: number;
 	limit?: number;
 }
@@ -221,6 +250,7 @@ export async function listRows({
 	kinds,
 	search,
 	tag,
+	folder,
 	offset = 0,
 	limit = 60,
 }: ListQuery): Promise<{ rows: MediaRow[]; total: number }> {
@@ -231,6 +261,8 @@ export async function listRows({
 		if (kinds && kinds.length > 0) q = q.where('kind', 'in', kinds);
 		if (search) q = q.where(contains('name', search));
 		if (tag) q = q.where(contains('tags', encodeTags([tag])));
+		if (folder === null) q = q.where('folderId', 'is', null);
+		else if (folder !== undefined) q = q.where('folderId', '=', folder);
 		return q;
 	};
 	const [rows, count] = await Promise.all([
@@ -264,6 +296,7 @@ export type RowPatch = Partial<
 		| 'width'
 		| 'height'
 		| 'storageKey'
+		| 'folderId'
 	>
 >;
 
@@ -337,4 +370,63 @@ export async function usageOf(id: string): Promise<Usage[]> {
 		.execute();
 	const seen = new Set<string>();
 	return (rows as Usage[]).filter((row) => !seen.has(row.pageId) && seen.add(row.pageId));
+}
+
+/** The stored files of every uploaded item, for keeping the disk in step (sync.ts). */
+export async function rowsWithFiles(): Promise<
+	Array<Pick<MediaRow, 'id' | 'folderId' | 'storageKey' | 'tracks' | 'variants'>>
+> {
+	await ensureTable();
+	return db()
+		.selectFrom(TABLE)
+		.select(['id', 'folderId', 'storageKey', 'tracks', 'variants'])
+		.where('storageKey', 'is not', null)
+		.execute();
+}
+
+/** Set an item's folder and/or rewrite its stored keys, without touching `updatedAt`. */
+export async function setRowFiles(
+	id: string,
+	patch: Partial<Pick<MediaRow, 'storageKey' | 'tracks' | 'variants' | 'folderId'>>,
+): Promise<void> {
+	await ensureTable();
+	await db().updateTable(TABLE).set(patch).where('id', '=', id).execute();
+}
+
+/** Items per folder (the top level under the key ''). */
+export async function countByFolder(): Promise<Map<string, number>> {
+	await ensureTable();
+	const rows: Array<{ folderId: string | null; total: number | string }> = await db()
+		.selectFrom(TABLE)
+		.select((eb: { fn: { countAll: () => { as: (n: string) => unknown } } }) => [
+			'folderId',
+			eb.fn.countAll().as('total'),
+		])
+		.groupBy('folderId')
+		.execute();
+	return new Map(rows.map((r) => [r.folderId ?? '', Number(r.total)]));
+}
+
+export async function listFolderRows(): Promise<FolderRow[]> {
+	await ensureTable();
+	return (await db().selectFrom(FOLDERS_TABLE).selectAll().execute()) as FolderRow[];
+}
+
+export async function insertFolderRow(row: FolderRow): Promise<void> {
+	await ensureTable();
+	await db().insertInto(FOLDERS_TABLE).values(row).execute();
+}
+
+export async function updateFolderRow(id: string, patch: Partial<Pick<FolderRow, 'name' | 'slug' | 'parentId'>>) {
+	await ensureTable();
+	await db()
+		.updateTable(FOLDERS_TABLE)
+		.set({ ...patch, updatedAt: new Date().toISOString() })
+		.where('id', '=', id)
+		.execute();
+}
+
+export async function deleteFolderRow(id: string): Promise<void> {
+	await ensureTable();
+	await db().deleteFrom(FOLDERS_TABLE).where('id', '=', id).execute();
 }

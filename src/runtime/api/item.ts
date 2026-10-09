@@ -1,14 +1,16 @@
 /**
  * /_media/api/items/:id (editors only)
  * - GET: the item and the pages that use it.
- * - PATCH { name?, alt?, tags?, focalPoint? }: rename, set alt text, tags (array) or the
- *   focal point of an image ({ x, y } in percent, or null for the center).
+ * - PATCH { name?, alt?, tags?, focalPoint?, folderId? }: rename, set alt text, tags (array), the
+ *   focal point of an image ({ x, y } in percent, or null for the center), or move it to a
+ *   folder (`null`: the top level; its files move on disk, its URL stays).
  * - DELETE (?force=1 to delete an item that's in use): delete the item and its file.
  */
 import type { APIRoute } from 'astro';
 import { encodeTags, normalizeFocalPoint, normalizeTags } from '../../meta.js';
 import { isMediaId } from '../../types.js';
 import { deleteRow, filesOf, getRow, type RowPatch, toItem, updateRow, usageOf } from '../db.js';
+import { FolderError, moveItems, targetFolder } from '../folders-store.js';
 import { error, guard, json, readJson } from '../http.js';
 import { removeFiles } from '../storage.js';
 
@@ -54,7 +56,15 @@ export const PATCH: APIRoute = async (context) => {
 		patch.focalX = point?.x ?? null;
 		patch.focalY = point?.y ?? null;
 	}
-	const updated = await updateRow(id, patch);
+	if ('folderId' in body) {
+		try {
+			await moveItems([id], await targetFolder(body.folderId));
+		} catch (cause) {
+			if (cause instanceof FolderError) return error(cause.status, cause.message);
+			throw cause;
+		}
+	}
+	const updated = Object.keys(patch).length > 0 ? await updateRow(id, patch) : await getRow(id);
 	return updated ? json({ item: toItem(updated) }) : error(404, 'Not found');
 };
 
@@ -70,6 +80,6 @@ export const DELETE: APIRoute = async (context) => {
 		return json({ error: 'This media item is used on pages', usage }, 409);
 	}
 	await deleteRow(id);
-	await removeFiles(filesOf(row));
+	await removeFiles(row.folderId ?? null, filesOf(row));
 	return new Response(null, { status: 204 });
 };

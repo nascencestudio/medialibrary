@@ -8,6 +8,7 @@ import type { APIRoute } from 'astro';
 import { isProviderThumbnail, parseRemoteVideo } from '../../remote.js';
 import { newMediaId } from '../../types.js';
 import { insertRow, type MediaRow, toItem } from '../db.js';
+import { FolderError, targetFolder } from '../folders-store.js';
 import { error, guard, json, readJson } from '../http.js';
 
 export const prerender = false;
@@ -38,6 +39,13 @@ export const POST: APIRoute = async (context) => {
 	const input = typeof body?.url === 'string' ? body.url : '';
 	const video = parseRemoteVideo(input);
 	if (!video) return error(400, 'Paste a YouTube or Vimeo video link.');
+	let folderId: string | null;
+	try {
+		folderId = await targetFolder(body?.folderId);
+	} catch (cause) {
+		if (cause instanceof FolderError) return error(cause.status, cause.message);
+		throw cause;
+	}
 
 	const info = await oembed(video.oembedUrl);
 	const provider = video.provider === 'youtube' ? 'YouTube' : 'Vimeo';
@@ -65,6 +73,7 @@ export const POST: APIRoute = async (context) => {
 		focalY: null,
 		tracks: '[]',
 		variants: '[]',
+		folderId,
 	};
 	try {
 		await insertRow(row);

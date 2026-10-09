@@ -31,8 +31,8 @@ export const POST: APIRoute = async (context) => {
 	const file = await receiveFile(context, await loadMediaSettings(), row.kind);
 	if (file instanceof Response) return file;
 	try {
-		const storageKey = storageKeyFor(id, file.ext, new Date(), keyToken());
-		await commit(file.temp, storageKey);
+		const storageKey = storageKeyFor(id, file.ext, keyToken());
+		await commit(file.temp, row.folderId ?? null, storageKey);
 		// A name that is still the old file's name follows the new file; a chosen name stays.
 		const oldExt = extensionOf(row.name);
 		const name =
@@ -46,7 +46,7 @@ export const POST: APIRoute = async (context) => {
 			height: file.height,
 			variants: '[]',
 		});
-		await removeFiles([row.storageKey, ...variantsOf(row).map((v) => v.storageKey)]);
+		await removeFiles(row.folderId ?? null, [row.storageKey, ...variantsOf(row).map((v) => v.storageKey)]);
 		if (updated) await addVariants(updated);
 		const fresh = await getRow(id);
 		return fresh ? json({ item: toItem(fresh) }) : error(404, 'Not found');

@@ -1,33 +1,42 @@
 /**
  * The media library UI: the dashboard's Media page (`mode: 'manage'`) and the
- * picker dialog (`mode: 'pick'`). Browse, search and filter, upload (button or
- * drag and drop, with progress), add remote videos, edit name, alt text, tags,
- * an image's focal point and a video's captions, replace an item's file, see
- * where an item is used, delete.
+ * picker dialog (`mode: 'pick'`). Browse folders, search and filter, upload (button or
+ * drag and drop, with progress) into the current folder, add remote videos, edit name,
+ * alt text, tags, an image's focal point and a video's captions, replace an item's
+ * file, see where an item is used, delete. On the Media page: create, rename, move and
+ * delete folders, and move items (the details panel, Ctrl/⌘/Shift-click to select
+ * several, or drag cards onto a folder). ADR 0100.
  */
 import { useSignal } from '@preact/signals';
 import type { JSX } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 import { ACCEPTED_EXTENSIONS, extensionOf } from '../detect.js';
 import { formatBytes } from '../format.js';
-import type { MediaItem, MediaKind } from '../types.js';
+import type { MediaFolder, MediaItem, MediaKind } from '../types.js';
 import {
 	addRemoteVideo,
+	createFolder,
 	defaultUploadSettings,
+	deleteFolder,
 	deleteMedia,
+	type FolderView,
 	getMedia,
 	getUploadSettings,
+	listFolders,
 	listMedia,
 	listTags,
 	MediaApiError,
 	type MediaPatch,
+	moveMedia,
 	replaceMediaFile,
 	sizeLimitFor,
 	type Usage,
+	updateFolder,
 	updateMedia,
 	uploadMedia,
 } from './api.js';
 import { CaptionsEditor, FocalPointEditor, TagEditor } from './details.js';
+import { FolderBar, FolderNav, FolderSelect, ITEMS_DRAG_TYPE, pathTo } from './folders.js';
 
 export interface LibraryProps {
 	mode: 'manage' | 'pick';
@@ -87,6 +96,8 @@ function Thumb({ item }: { item: MediaItem }) {
 				class="ml-thumb__img"
 				src={item.thumbnailUrl}
 				alt=""
+				// Drag the card, not the image: a dragged image carries a file, which would upload a copy.
+				draggable={false}
 				loading="lazy"
 				decoding="async"
 				referrerpolicy="no-referrer"
@@ -126,6 +137,17 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 	const status = useSignal('');
 	const fileInput = useRef<HTMLInputElement>(null);
 	const sequence = useRef(0);
+	const folders = useSignal<MediaFolder[]>([]);
+	const topLevelCount = useSignal(0);
+	const libraryTotal = useSignal(0);
+	const view = useSignal<FolderView>('all');
+	/** Items selected together (Ctrl/⌘/Shift-click), Media page only. */
+	const multi = useSignal<string[]>([]);
+	const manage = mode === 'manage';
+	/** Where new uploads and remote videos go: the folder being viewed, else the top level. */
+	const targetFolder = () => (view.value === 'all' ? null : view.value);
+	const folderName = (id: string | null) =>
+		id === null ? 'the top level' : `"${folders.value.find((f) => f.id === id)?.name ?? 'folder'}"`;
 
 	const activeKinds = () => (filter.value === 'all' ? kinds : [filter.value]);
 	const uploadKinds = kinds.filter((k) => k !== 'remoteVideo');
@@ -144,11 +166,25 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 			})
 			.catch(() => {});
 
+	const refreshFolders = () =>
+		listFolders()
+			.then((result) => {
+				folders.value = result.folders;
+				topLevelCount.value = result.topLevelCount;
+				libraryTotal.value = result.total;
+				const current = view.value;
+				if (current !== 'all' && current !== null && !result.folders.some((f) => f.id === current)) {
+					view.value = null;
+				}
+			})
+			.catch(() => {});
+
 	useEffect(() => {
 		void getUploadSettings().then((settings) => {
 			uploadSettings.value = settings;
 		});
 		void refreshTags();
+		void refreshFolders();
 	}, []);
 
 	async function load(append = false) {
@@ -160,6 +196,7 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 				kinds: activeKinds(),
 				q: search.value.trim(),
 				tag: tagFilter.value,
+				folder: view.value,
 				offset: append ? items.value.length : 0,
 				limit: PAGE,
 			});
@@ -177,9 +214,23 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 	useEffect(() => {
 		const timer = setTimeout(() => load(), search.value ? 250 : 0);
 		return () => clearTimeout(timer);
-	}, [filter.value, search.value, tagFilter.value]);
+	}, [filter.value, search.value, tagFilter.value, view.value]);
+
+	/** Ctrl/⌘/Shift-click: add or remove an item from a multiple selection (Media page). */
+	function toggleMulti(item: MediaItem) {
+		const current = multi.value.length > 0 ? multi.value : selected.value ? [selected.value.id] : [];
+		multi.value = current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id];
+		if (multi.value.length === 1) {
+			const only = items.value.find((i) => i.id === multi.value[0]);
+			multi.value = [];
+			if (only) void select(only);
+		} else if (multi.value.length === 0) {
+			selected.value = null;
+		}
+	}
 
 	async function select(item: MediaItem) {
+		multi.value = [];
 		selected.value = item;
 		usage.value = null;
 		confirmDelete.value = null;
@@ -216,13 +267,14 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 				uploads.value = uploads.value.map((u) => (u.key === key ? { ...u, ...patch } : u));
 			};
 			try {
-				const item = await uploadMedia(file, (progress) => update({ progress }));
+				const item = await uploadMedia(file, (progress) => update({ progress }), '/upload', targetFolder());
 				uploads.value = uploads.value.filter((u) => u.key !== key);
 				status.value = `Uploaded ${item.name}.`;
 				if (activeKinds().includes(item.kind)) {
 					items.value = [item, ...items.value];
 					total.value += 1;
 				}
+				void refreshFolders();
 				if (mode === 'pick' && !kinds.includes(item.kind)) continue;
 				void select(item);
 			} catch (cause) {
@@ -235,7 +287,7 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 		event.preventDefault();
 		remoteError.value = '';
 		try {
-			const { item } = await addRemoteVideo(remoteUrl.value);
+			const { item } = await addRemoteVideo(remoteUrl.value, targetFolder());
 			remoteUrl.value = '';
 			remoteOpen.value = false;
 			status.value = `Added ${item.name}.`;
@@ -243,6 +295,7 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 				items.value = [item, ...items.value];
 				total.value += 1;
 			}
+			void refreshFolders();
 			void select(item);
 		} catch (cause) {
 			remoteError.value = (cause as Error).message;
@@ -293,14 +346,81 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 			selected.value = null;
 			confirmDelete.value = null;
 			status.value = `Deleted ${item.name}.`;
+			void refreshFolders();
 		} catch (cause) {
 			if (cause instanceof MediaApiError && cause.status === 409) confirmDelete.value = cause.usage;
 			else status.value = (cause as Error).message;
 		}
 	}
 
+	/** Move items into a folder; they leave a folder view they no longer belong to. */
+	async function moveItems(ids: string[], folderId: string | null) {
+		try {
+			const { items: moved } = await moveMedia(ids, folderId);
+			const byId = new Map(moved.map((m) => [m.id, m]));
+			const stays = (m: MediaItem) => view.value === 'all' || (m.folderId ?? null) === view.value;
+			const before = items.value.length;
+			items.value = items.value.flatMap((m) => {
+				const next = byId.get(m.id) ?? m;
+				return stays(next) ? [next] : [];
+			});
+			total.value = Math.max(0, total.value - (before - items.value.length));
+			if (selected.value && byId.has(selected.value.id)) {
+				const next = byId.get(selected.value.id) as MediaItem;
+				selected.value = stays(next) ? next : null;
+			}
+			multi.value = multi.value.filter((id) => items.value.some((m) => m.id === id));
+			if (multi.value.length < 2) multi.value = [];
+			status.value = `Moved ${moved.length === 1 ? `"${moved[0]?.name}"` : `${moved.length} items`} to ${folderName(folderId)}.`;
+			void refreshFolders();
+		} catch (cause) {
+			status.value = (cause as Error).message;
+		}
+	}
+
+	/** Folder changes from the folder bar: the result or the error goes to the status line. Resolves to success. */
+	const folderAction =
+		<A extends unknown[]>(run: (...args: A) => Promise<string>) =>
+		async (...args: A): Promise<boolean> => {
+			try {
+				const message = await run(...args);
+				await refreshFolders();
+				status.value = message;
+				return true;
+			} catch (cause) {
+				status.value = (cause as Error).message;
+				return false;
+			}
+		};
+	const manageFolders = {
+		create: folderAction(async (name: string, parentId: string | null) => {
+			const { folder } = await createFolder(name, parentId);
+			return `Created folder "${folder.name}".`;
+		}),
+		rename: folderAction(async (id: string, name: string) => {
+			const { folder } = await updateFolder(id, { name });
+			return `Renamed the folder to "${folder.name}".`;
+		}),
+		move: folderAction(async (id: string, parentId: string | null) => {
+			const { folder } = await updateFolder(id, { parentId });
+			return `Moved "${folder.name}" to ${folderName(parentId)}.`;
+		}),
+		remove: async (id: string) => {
+			const folder = folders.value.find((f) => f.id === id);
+			try {
+				await deleteFolder(id);
+				view.value = folder?.parentId ?? null;
+				status.value = `Deleted folder "${folder?.name ?? ''}".`;
+				await refreshFolders();
+			} catch (cause) {
+				status.value = (cause as Error).message;
+			}
+		},
+	};
+
 	const item = selected.value;
 	const pickable = item && kinds.includes(item.kind);
+	const multiItems = items.value.filter((m) => multi.value.includes(m.id));
 
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: a drop target for files; keyboard users use the Upload button
@@ -308,7 +428,9 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 			class={`ml-library ml-library--${mode}${dragging.value ? ' ml-library--dragging' : ''}`}
 			data-media-library={mode}
 			onDragOver={(e) => {
-				if (uploadKinds.length === 0 || !e.dataTransfer?.types.includes('Files')) return;
+				const types = e.dataTransfer?.types;
+				// Files from the computer only; the library's own item drags go to folders.
+				if (uploadKinds.length === 0 || !types?.includes('Files') || types.includes(ITEMS_DRAG_TYPE)) return;
 				e.preventDefault();
 				dragging.value = true;
 			}}
@@ -316,7 +438,7 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 				if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) dragging.value = false;
 			}}
 			onDrop={(e) => {
-				if (!e.dataTransfer?.files.length) return;
+				if (!e.dataTransfer?.files.length || e.dataTransfer.types.includes(ITEMS_DRAG_TYPE)) return;
 				e.preventDefault();
 				dragging.value = false;
 				void uploadFiles(e.dataTransfer.files);
@@ -460,7 +582,30 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 			)}
 
 			<div class="ml-body">
+				<FolderNav
+					folders={folders.value}
+					topLevelCount={topLevelCount.value}
+					total={libraryTotal.value}
+					view={view.value}
+					onView={(next) => {
+						view.value = next;
+						selected.value = null;
+						multi.value = [];
+					}}
+					onDropItems={manage ? (ids, folderId) => void moveItems(ids, folderId) : undefined}
+				/>
 				<div class="ml-grid-wrap">
+					<FolderBar
+						key={view.value ?? 'top'}
+						folders={folders.value}
+						view={view.value}
+						onView={(next) => {
+							view.value = next;
+							selected.value = null;
+							multi.value = [];
+						}}
+						manage={manage ? manageFolders : undefined}
+					/>
 					{loadError.value && (
 						<p class="ml-error" role="alert">
 							{loadError.value}
@@ -468,7 +613,15 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 					)}
 					{!loading.value && items.value.length === 0 && !loadError.value && (
 						<div class="ml-empty">
-							<p>{search.value || tagFilter.value ? 'Nothing matches that search.' : 'No media yet.'}</p>
+							<p>
+								{search.value || tagFilter.value
+									? 'Nothing matches that search.'
+									: view.value === 'all'
+										? 'No media yet.'
+										: view.value === null
+											? 'No media outside folders.'
+											: 'This folder is empty.'}
+							</p>
 							{uploadKinds.length > 0 && <p class="ml-muted">Drop files here or use Upload.</p>}
 						</div>
 					)}
@@ -478,10 +631,22 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 								<button
 									type="button"
 									class="ml-card"
-									aria-pressed={selected.value?.id === media.id}
+									aria-pressed={
+										multi.value.length > 0 ? multi.value.includes(media.id) : selected.value?.id === media.id
+									}
 									data-media-item={media.id}
 									title={media.name}
-									onClick={() => select(media)}
+									draggable={manage}
+									onDragStart={(e) => {
+										if (!e.dataTransfer) return;
+										const ids = multi.value.includes(media.id) ? multi.value : [media.id];
+										e.dataTransfer.setData(ITEMS_DRAG_TYPE, JSON.stringify(ids));
+										e.dataTransfer.effectAllowed = 'move';
+									}}
+									onClick={(e) => {
+										if (manage && (e.ctrlKey || e.metaKey || e.shiftKey)) toggleMulti(media);
+										else void select(media);
+									}}
 									onDblClick={() => mode === 'pick' && kinds.includes(media.kind) && onPick?.(media)}
 								>
 									<span class="ml-thumb">
@@ -500,7 +665,37 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 					)}
 				</div>
 
-				{item && (
+				{multiItems.length > 1 && (
+					<aside class="ml-details" aria-label="Selected media" data-media-multi={multiItems.length}>
+						<p>
+							<strong>{multiItems.length} items selected</strong>
+						</p>
+						<ul class="ml-multi-list">
+							{multiItems.map((m) => (
+								<li key={m.id}>{m.name}</li>
+							))}
+						</ul>
+						<div class="ml-field">
+							<span>Move to folder</span>
+							<FolderSelect
+								folders={folders.value}
+								value={null}
+								label={`Move ${multiItems.length} items to`}
+								field="multi"
+								placeholder="Choose a folder…"
+								onChange={(folderId) => void moveItems(multi.value, folderId)}
+							/>
+						</div>
+						<p class="ml-muted">Tip: drag the selected items onto a folder.</p>
+						<div class="ml-actions">
+							<button type="button" class="ml-button" data-media-multi-clear onClick={() => (multi.value = [])}>
+								Clear selection
+							</button>
+						</div>
+					</aside>
+				)}
+
+				{item && multiItems.length <= 1 && (
 					<aside class="ml-details" aria-label="Media details" data-media-details={item.id}>
 						<div class="ml-preview">
 							{item.kind === 'image' && (
@@ -575,6 +770,28 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 							onChange={(tags) => void save({ tags })}
 						/>
 						{item.kind === 'video' && <CaptionsEditor key={`captions-${item.id}`} item={item} onItem={replaceItem} />}
+						{manage ? (
+							<div class="ml-field">
+								<span>Folder</span>
+								<FolderSelect
+									key={`folder-${item.id}`}
+									folders={folders.value}
+									value={item.folderId}
+									label="Folder"
+									field="item"
+									onChange={(folderId) => void moveItems([item.id], folderId)}
+								/>
+							</div>
+						) : (
+							item.folderId && (
+								<p class="ml-muted">
+									In{' '}
+									{pathTo(item.folderId, folders.value)
+										.map((f) => f.name)
+										.join(' / ')}
+								</p>
+							)
+						)}
 						<dl class="ml-info">
 							<dt>Type</dt>
 							<dd>

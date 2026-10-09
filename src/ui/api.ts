@@ -4,7 +4,7 @@
  */
 import config from 'virtual:medialibrary/config';
 import type { MediaSettings } from '../settings.js';
-import type { FocalPoint, MediaItem, MediaKind, MediaLimits, TrackKind } from '../types.js';
+import type { FocalPoint, MediaFolder, MediaItem, MediaKind, MediaLimits, TrackKind } from '../types.js';
 
 export interface Usage {
 	pageId: string;
@@ -31,8 +31,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 	return body as T;
 }
 
-export function listMedia(query: { kinds?: MediaKind[]; q?: string; tag?: string; offset?: number; limit?: number }) {
+/** Which items to list: every item, the top level only (`null`), or one folder's. */
+export type FolderView = 'all' | null | string;
+
+export function listMedia(query: {
+	kinds?: MediaKind[];
+	q?: string;
+	tag?: string;
+	folder?: FolderView;
+	offset?: number;
+	limit?: number;
+}) {
 	const params = new URLSearchParams();
+	if (query.folder === null) params.set('folder', 'top');
+	else if (query.folder && query.folder !== 'all') params.set('folder', query.folder);
 	if (query.tag) params.set('tag', query.tag);
 	if (query.kinds?.length) params.set('kind', query.kinds.join(','));
 	if (query.q) params.set('q', query.q);
@@ -61,12 +73,32 @@ export const updateMedia = (id: string, patch: MediaPatch) =>
 export const deleteMedia = (id: string, force = false) =>
 	request<void>(`/items/${encodeURIComponent(id)}${force ? '?force=1' : ''}`, { method: 'DELETE' });
 
-export const addRemoteVideo = (url: string) =>
+export const addRemoteVideo = (url: string, folderId: string | null = null) =>
 	request<{ item: MediaItem }>('/remote', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ url }),
+		body: JSON.stringify({ url, folderId }),
 	});
+
+export const listFolders = () => request<{ folders: MediaFolder[]; topLevelCount: number; total: number }>('/folders');
+
+const sendJson = (method: string, body: unknown): RequestInit => ({
+	method,
+	headers: { 'Content-Type': 'application/json' },
+	body: JSON.stringify(body),
+});
+
+export const createFolder = (name: string, parentId: string | null) =>
+	request<{ folder: MediaFolder }>('/folders', sendJson('POST', { name, parentId }));
+
+export const updateFolder = (id: string, patch: { name?: string; parentId?: string | null }) =>
+	request<{ folder: MediaFolder }>(`/folders/${encodeURIComponent(id)}`, sendJson('PATCH', patch));
+
+export const deleteFolder = (id: string) => request<void>(`/folders/${encodeURIComponent(id)}`, { method: 'DELETE' });
+
+/** Move items into a folder (null: the top level). */
+export const moveMedia = (ids: string[], folderId: string | null) =>
+	request<{ items: MediaItem[] }>('/move', sendJson('POST', { ids, folderId }));
 
 export const listTags = () => request<{ tags: Array<{ tag: string; count: number }> }>('/tags');
 
@@ -94,7 +126,13 @@ export const replaceMediaFile = (id: string, file: File, onProgress: (fraction: 
 	uploadMedia(file, onProgress, `/items/${encodeURIComponent(id)}/file`);
 
 /** Upload one file with progress (XMLHttpRequest: fetch has no upload progress). */
-export function uploadMedia(file: File, onProgress: (fraction: number) => void, path = '/upload'): Promise<MediaItem> {
+export function uploadMedia(
+	file: File,
+	onProgress: (fraction: number) => void,
+	path = '/upload',
+	folderId: string | null = null,
+): Promise<MediaItem> {
+	if (folderId) path += `?folder=${encodeURIComponent(folderId)}`;
 	return new Promise((resolve, reject) => {
 		const xhr = new XMLHttpRequest();
 		xhr.open('POST', `${config.apiBase}${path}`);
