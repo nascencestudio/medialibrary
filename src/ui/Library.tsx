@@ -20,6 +20,7 @@ import {
 	deleteFolder,
 	deleteMedia,
 	type FolderView,
+	getFolderContents,
 	getMedia,
 	getUploadSettings,
 	listFolders,
@@ -37,6 +38,7 @@ import {
 } from './api.js';
 import { CaptionsEditor, FocalPointEditor, TagEditor } from './details.js';
 import { FolderBar, FolderNav, FolderSelect, ITEMS_DRAG_TYPE, pathTo } from './folders.js';
+import { UsageBadge } from './usage.js';
 
 export interface LibraryProps {
 	mode: 'manage' | 'pick';
@@ -137,6 +139,8 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 	const replacing = useSignal<{ progress: number; error?: string } | null>(null);
 	const replaceInput = useRef<HTMLInputElement>(null);
 	const items = useSignal<MediaItem[]>([]);
+	/** Pages using each listed item (items on no page are absent). */
+	const usageCounts = useSignal<Record<string, number>>({});
 	const total = useSignal(0);
 	const loading = useSignal(false);
 	const loadError = useSignal('');
@@ -218,6 +222,7 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 			});
 			if (id !== sequence.current) return;
 			items.value = append ? [...items.value, ...result.items] : result.items;
+			usageCounts.value = append ? { ...usageCounts.value, ...result.usage } : result.usage;
 			total.value = result.total;
 		} catch (cause) {
 			if (id === sequence.current) loadError.value = (cause as Error).message;
@@ -421,15 +426,25 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 			const { folder } = await updateFolder(id, { parentId });
 			return `Moved "${folder.name}" to ${folderName(parentId)}.`;
 		}),
-		remove: async (id: string) => {
+		contents: getFolderContents,
+		remove: async (id: string, confirm: string) => {
 			const folder = folders.value.find((f) => f.id === id);
 			try {
-				await deleteFolder(id);
-				view.value = folder?.parentId ?? null;
-				status.value = `Deleted folder "${folder?.name ?? ''}".`;
+				const deleted = await deleteFolder(id, confirm);
+				selected.value = null;
+				multi.value = [];
+				view.value = folder?.parentId ?? null; // reloads the grid
 				await refreshFolders();
+				void refreshTags();
+				const what = [
+					deleted.items > 0 && `${deleted.items} item${deleted.items === 1 ? '' : 's'}`,
+					deleted.folders > 1 && `${deleted.folders - 1} subfolder${deleted.folders === 2 ? '' : 's'}`,
+				].filter(Boolean);
+				status.value = `Deleted folder "${folder?.name ?? ''}"${what.length ? ` with ${what.join(' and ')}` : ''}.`;
+				return true;
 			} catch (cause) {
 				status.value = (cause as Error).message;
+				return false;
 			}
 		},
 	};
@@ -649,7 +664,7 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 					)}
 					<ul class="ml-grid" aria-label="Media items">
 						{items.value.map((media) => (
-							<li key={media.id}>
+							<li key={media.id} class="ml-grid__item">
 								<button
 									type="button"
 									class="ml-card"
@@ -677,6 +692,9 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 									<span class="ml-card__name">{media.name}</span>
 									<span class="ml-card__kind">{KIND_SINGULAR[media.kind]}</span>
 								</button>
+								{(usageCounts.value[media.id] ?? 0) > 0 && (
+									<UsageBadge itemId={media.id} itemName={media.name} count={usageCounts.value[media.id] ?? 0} />
+								)}
 							</li>
 						))}
 					</ul>

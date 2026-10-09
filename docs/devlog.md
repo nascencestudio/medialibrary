@@ -38,6 +38,14 @@ names, user-typed paths, atomicity, one-way sync). [ADR 0100](decisions/0100-fol
   into), and a note says what the field takes ("Only images can be used here."). The Media page
   keeps counting everything. Covered in the playground's media-tapestry suite.
 
+- Deleting a folder (user feedback): deletes everything in it like a file manager, after typing the
+  folder's name (case-insensitive) in a dialog with Cancel / Delete (disabled until it matches); the
+  server requires the same name. The dialog lists what's inside and the pages using any of it.
+- Usage badges (user idea): each card shows how many pages use the item (stacked-pages icon and count,
+  top-right corner); clicking lists the pages with links to their editors. Counts come from one query
+  per page of items (`usageByItem`). Covered in the playground's media-tapestry, media-folders and
+  a11y suites (dialog audited in both themes).
+
 ### Next
 - Release 0.2.0 (staged; approve on npm), then switch the playground to it.
 

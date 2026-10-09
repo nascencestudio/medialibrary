@@ -50,7 +50,7 @@ export function listMedia(query: {
 	if (query.q) params.set('q', query.q);
 	if (query.offset) params.set('offset', String(query.offset));
 	if (query.limit) params.set('limit', String(query.limit));
-	return request<{ items: MediaItem[]; total: number }>(`/items?${params}`);
+	return request<{ items: MediaItem[]; total: number; usage: Record<string, number> }>(`/items?${params}`);
 }
 
 export const getMedia = (id: string) =>
@@ -98,7 +98,20 @@ export const createFolder = (name: string, parentId: string | null) =>
 export const updateFolder = (id: string, patch: { name?: string; parentId?: string | null }) =>
 	request<{ folder: MediaFolder }>(`/folders/${encodeURIComponent(id)}`, sendJson('PATCH', patch));
 
-export const deleteFolder = (id: string) => request<void>(`/folders/${encodeURIComponent(id)}`, { method: 'DELETE' });
+/** What deleting a folder would delete, and the pages that use media in it. */
+export interface FolderContents {
+	folders: number;
+	items: number;
+	inUse: number;
+	pages: Usage[];
+	morePages: boolean;
+}
+
+export const getFolderContents = (id: string) => request<FolderContents>(`/folders/${encodeURIComponent(id)}`);
+
+/** Delete a folder and everything in it; `confirm` is the folder's name as the person typed it. */
+export const deleteFolder = (id: string, confirm: string) =>
+	request<{ folders: number; items: number }>(`/folders/${encodeURIComponent(id)}`, sendJson('DELETE', { confirm }));
 
 /** Move items into a folder (null: the top level). */
 export const moveMedia = (ids: string[], folderId: string | null) =>

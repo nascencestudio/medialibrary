@@ -310,6 +310,35 @@ export async function updateRow(id: string, patch: RowPatch): Promise<MediaRow |
 	return getRow(id);
 }
 
+/** Every item directly in one of these folders. */
+export async function rowsInFolders(folderIds: readonly string[]): Promise<MediaRow[]> {
+	if (folderIds.length === 0) return [];
+	await ensureTable();
+	return (await db()
+		.selectFrom(TABLE)
+		.selectAll()
+		.where('folderId', 'in', [...folderIds])
+		.execute()) as MediaRow[];
+}
+
+export async function deleteRows(ids: readonly string[]): Promise<void> {
+	if (ids.length === 0) return;
+	await ensureTable();
+	await db()
+		.deleteFrom(TABLE)
+		.where('id', 'in', [...ids])
+		.execute();
+}
+
+export async function deleteFolderRows(ids: readonly string[]): Promise<void> {
+	if (ids.length === 0) return;
+	await ensureTable();
+	await db()
+		.deleteFrom(FOLDERS_TABLE)
+		.where('id', 'in', [...ids])
+		.execute();
+}
+
 export async function deleteRow(id: string): Promise<void> {
 	await ensureTable();
 	await db().deleteFrom(TABLE).where('id', '=', id).execute();
@@ -370,6 +399,35 @@ export async function usageOf(id: string): Promise<Usage[]> {
 		.execute();
 	const seen = new Set<string>();
 	return (rows as Usage[]).filter((row) => !seen.has(row.pageId) && seen.add(row.pageId));
+}
+
+/**
+ * Pages using each of several items, in one query per 100 items (instead of one per item):
+ * content rows mentioning any of the ids, then matched per id in memory. Ids are 18 random
+ * characters, so a mention is a use. Items without pages are left out of the map.
+ */
+export async function usageByItem(ids: readonly string[]): Promise<Map<string, Usage[]>> {
+	const result = new Map<string, Usage[]>();
+	for (let start = 0; start < ids.length; start += 100) {
+		const chunk = ids.slice(start, start + 100);
+		const rows: Array<Usage & { content: string | null }> = await db()
+			.selectFrom('StudioCMSPageContent as c')
+			.innerJoin('StudioCMSPageData as p', 'p.id', 'c.contentId')
+			.select(['p.id as pageId', 'p.title as title', 'p.slug as slug', 'c.content as content'])
+			// biome-ignore lint/suspicious/noExplicitAny: Kysely expression builder over untyped tables
+			.where((eb: any) => eb.or(chunk.map((id) => contains('c.content', id))))
+			.execute();
+		for (const id of chunk) {
+			const pages = new Map<string, Usage>();
+			for (const row of rows) {
+				if (row.content?.includes(id) && !pages.has(row.pageId)) {
+					pages.set(row.pageId, { pageId: row.pageId, title: row.title, slug: row.slug });
+				}
+			}
+			if (pages.size > 0) result.set(id, [...pages.values()]);
+		}
+	}
+	return result;
 }
 
 /** The stored files of every uploaded item, for keeping the disk in step (sync.ts). */

@@ -4,9 +4,10 @@
  * delete) and a folder select for moving things.
  */
 import { useSignal } from '@preact/signals';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
 import type { MediaFolder } from '../types.js';
-import type { FolderView } from './api.js';
+import type { FolderContents, FolderView } from './api.js';
+import { PageList } from './usage.js';
 
 /** Drag type for media items dragged onto a folder (JSON array of ids). */
 export const ITEMS_DRAG_TYPE = 'application/x-nascence-media-ids';
@@ -275,14 +276,128 @@ interface BarProps {
 		create: (name: string, parentId: string | null) => Promise<boolean>;
 		rename: (id: string, name: string) => Promise<boolean>;
 		move: (id: string, parentId: string | null) => Promise<boolean>;
-		remove: (id: string) => Promise<void>;
+		contents: (id: string) => Promise<FolderContents>;
+		remove: (id: string, confirm: string) => Promise<boolean>;
 	};
+}
+
+/** Same comparison as the server's: case-insensitive, spaces trimmed and collapsed. */
+const sameName = (a: string, b: string) => {
+	const key = (s: string) => s.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('en');
+	return key(a) === key(b);
+};
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+interface DeleteDialogProps {
+	folder: MediaFolder;
+	contents: FolderContents;
+	onCancel: () => void;
+	onDelete: (typed: string) => Promise<boolean>;
+}
+
+/**
+ * "Delete folder?": what it contains and which pages use media in it; Delete stays disabled
+ * until the folder's name is typed (case-insensitive; the server checks it again).
+ */
+function DeleteFolderDialog({ folder, contents, onCancel, onDelete }: DeleteDialogProps) {
+	const dialog = useRef<HTMLDialogElement>(null);
+	const typed = useSignal('');
+	const busy = useSignal(false);
+	useLayoutEffect(() => {
+		const element = dialog.current;
+		element?.showModal();
+		return () => element?.close();
+	}, []);
+	const matches = sameName(typed.value, folder.name);
+	const confirm = async () => {
+		if (!matches || busy.value) return;
+		busy.value = true;
+		try {
+			await onDelete(typed.value);
+		} finally {
+			busy.value = false;
+		}
+	};
+	const inside = [
+		contents.folders > 0 && plural(contents.folders, 'subfolder'),
+		contents.items > 0 && plural(contents.items, 'media item'),
+	].filter(Boolean);
+	return (
+		<dialog
+			ref={dialog}
+			class="ml-confirm-dialog"
+			aria-labelledby="ml-delete-folder-title"
+			data-media-delete-folder
+			onCancel={(e) => {
+				e.preventDefault();
+				onCancel();
+			}}
+		>
+			<h2 id="ml-delete-folder-title" class="ml-dialog__title">
+				Delete "{folder.name}"?
+			</h2>
+			{inside.length > 0 ? (
+				<p>
+					This deletes the folder with everything in it: <strong>{inside.join(' and ')}</strong>, and their files.
+				</p>
+			) : (
+				<p>The folder is empty.</p>
+			)}
+			{contents.inUse > 0 && (
+				<div class="ml-warning" data-media-delete-folder-in-use={contents.inUse}>
+					<p>
+						<strong>{plural(contents.inUse, 'item is', 'items are')} used on the site.</strong> These pages will show a
+						gap:
+					</p>
+					<PageList pages={contents.pages} more={contents.morePages} />
+				</div>
+			)}
+			<p>This can't be undone.</p>
+			<label class="ml-field">
+				<span>
+					Type <strong>{folder.name}</strong> to confirm
+				</span>
+				<input
+					class="ml-input"
+					autoComplete="off"
+					spellcheck={false}
+					value={typed.value}
+					data-media-delete-folder-name
+					onInput={(e) => {
+						typed.value = e.currentTarget.value;
+					}}
+					onKeyDown={(e) => {
+						if (e.key === 'Enter') {
+							e.preventDefault();
+							void confirm();
+						}
+					}}
+				/>
+			</label>
+			<div class="ml-dialog-actions">
+				<button type="button" class="ml-button" data-media-delete-folder-cancel onClick={onCancel}>
+					Cancel
+				</button>
+				<button
+					type="button"
+					class="ml-button ml-button--danger"
+					disabled={!matches || busy.value}
+					data-media-delete-folder-confirm
+					onClick={() => void confirm()}
+				>
+					Delete
+				</button>
+			</div>
+		</dialog>
+	);
 }
 
 /** Where you are (breadcrumb) and what you can do with the current folder. */
 export function FolderBar({ folders, view, onView, manage }: BarProps) {
 	// The parent renders this with `key={view}`, so an open form never outlives a folder change.
 	const editing = useSignal<'create' | 'rename' | 'move' | null>(null);
+	const deleting = useSignal<{ folder: MediaFolder; contents: FolderContents } | null>(null);
 	const current = typeof view === 'string' && view !== 'all' ? folders.find((f) => f.id === view) : undefined;
 	const crumbs = current ? pathTo(current.id, folders) : [];
 	return (
@@ -383,7 +498,13 @@ export function FolderBar({ folders, view, onView, manage }: BarProps) {
 										type="button"
 										class="ml-button ml-button--danger"
 										data-media-folder-action="delete"
-										onClick={() => void manage.remove(current.id)}
+										onClick={async () => {
+											try {
+												deleting.value = { folder: current, contents: await manage.contents(current.id) };
+											} catch {
+												// The folder is gone (another tab); the list refreshes on the next change.
+											}
+										}}
 									>
 										Delete folder
 									</button>
@@ -392,6 +513,18 @@ export function FolderBar({ folders, view, onView, manage }: BarProps) {
 						</>
 					)}
 				</span>
+			)}
+			{manage && deleting.value && (
+				<DeleteFolderDialog
+					folder={deleting.value.folder}
+					contents={deleting.value.contents}
+					onCancel={() => (deleting.value = null)}
+					onDelete={async (typed) => {
+						const done = await manage.remove(deleting.value?.folder.id ?? '', typed);
+						if (done) deleting.value = null;
+						return done;
+					}}
+				/>
 			)}
 		</div>
 	);

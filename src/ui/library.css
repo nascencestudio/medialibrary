@@ -240,6 +240,100 @@
 	color: var(--ml-muted);
 	opacity: 0.6;
 }
+/* Usage badge on a card (top-right corner, over the border) and its page list */
+.ml-grid__item {
+	position: relative;
+}
+.ml-usage {
+	position: absolute;
+	top: -0.5rem;
+	right: -0.5rem;
+	z-index: 2;
+}
+.ml-usage-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.2rem;
+	min-width: 1.5rem;
+	height: 1.5rem;
+	padding: 0 0.4rem;
+	font: inherit;
+	font-size: 0.75rem;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-inverted, #fff);
+	background: var(--ml-primary);
+	border: 2px solid var(--ml-bg);
+	border-radius: 999px;
+	cursor: pointer;
+	box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+}
+.ml-usage-badge:focus-visible {
+	outline: 2px solid var(--ml-primary);
+	outline-offset: 2px;
+}
+.ml-usage-popover {
+	position: absolute;
+	top: calc(100% + 0.25rem);
+	right: 0;
+	width: max-content;
+	max-width: 18rem;
+	padding: 0.5rem 0.75rem;
+	background: var(--ml-bg);
+	border: 1px solid var(--ml-border);
+	border-radius: var(--ml-radius);
+	box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
+}
+.ml-usage-popover__head {
+	display: flex;
+	justify-content: space-between;
+	gap: 0.75rem;
+	margin-bottom: 0.25rem;
+}
+.ml-page-list {
+	margin: 0;
+	padding-inline-start: 1.1rem;
+	max-height: 12rem;
+	overflow-y: auto;
+}
+.ml-page-list a {
+	color: var(--ml-primary);
+}
+.ml-confirm-dialog {
+	width: min(30rem, calc(100vw - 2rem));
+	padding: 1rem 1.25rem;
+	color: var(--ml-text);
+	background: var(--ml-bg);
+	border: 1px solid var(--ml-border);
+	border-radius: var(--ml-radius);
+	box-shadow: 0 12px 40px rgb(0 0 0 / 0.35);
+}
+.ml-confirm-dialog::backdrop {
+	background: rgb(0 0 0 / 0.5);
+}
+.ml-confirm-dialog p {
+	margin: 0 0 0.75rem;
+}
+.ml-dialog-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
+	margin-top: 0.75rem;
+}
+.ml-warning {
+	margin-bottom: 0.75rem;
+	padding: 0.5rem 0.75rem;
+	border: 1px solid var(--ml-danger);
+	border-inline-start-width: 4px;
+	border-radius: var(--ml-radius);
+}
+.ml-warning p {
+	margin-bottom: 0.25rem;
+}
+.ml-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
 .ml-accept-note {
 	margin: -0.25rem 0 0;
 	color: var(--ml-muted);

@@ -68,6 +68,11 @@ scripts/copy-assets.mjs ← copies .astro/.css/.d.ts into dist/
   stored. URLs are `/files/<file name>`: never put folder names in URLs.
 - `YYYY/MM/<file name>` keys (before 0.2.0) are still valid input everywhere (`isStorageKey`); the
   startup sync migrates them. Don't drop that support while sites may still upgrade from 0.1.x.
+- Deleting a folder deletes its contents (subfolders, items, files) only with `confirm` = the folder's
+  name; the dialog and the server compare the same way (NFKC, trimmed, case-insensitive). Never add a
+  way to delete contents without it.
+- Page usage: use `usageByItem(ids)` (one query per 100 items) for lists; `usageOf` per item is for
+  single items only.
 - In the UI, folder actions resolve to success booleans instead of throwing: a rejection that went
   through a Preact handler chain was reported as uncaught.
 - Thumbnails are `draggable={false}`: a dragged `<img>` carries a *file*, and the upload drop zone

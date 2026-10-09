@@ -48,9 +48,16 @@ folder names into public URLs (they're often internal), and need folder paths in
    only if the name is one of that item's stored files; no request path is ever used to build a
    disk path. Same headers as before (nosniff, sandbox CSP, immutable caching: the content at a
    URL never changes).
-7. **Deleting** a folder is only allowed when it's empty (no items, no folders); its directory is
-   removed only if empty (anything someone else put there stays).
-8. **UI:** a folder list (All media, Not in a folder, the tree; drop target for dragged items),
+7. **Deleting** a folder deletes everything in it, like a file manager: its subfolders, their items
+   and the items' files (the user's choice, replacing "empty folders only"). A confirmation dialog
+   lists what's inside and the pages that use any of it (they'd show gaps), and Delete stays
+   disabled until the folder's name is typed (case-insensitive). The server checks the same name
+   (`confirm`), so only a deliberate request deletes contents. Directories are removed only once
+   empty (anything someone else put there stays).
+8. **Usage is visible:** each card carries a badge with the number of pages using the item, which
+   opens the list of those pages (linked to their editors). One query per listed page of items
+   (`usageByItem`), not one per item.
+9. **UI:** a folder list (All media, Not in a folder, the tree; drop target for dragged items),
    the current folder's bar (breadcrumb, New folder/subfolder, Rename, Move, Delete), uploads and
    remote videos into the folder being viewed, a Folder field in the details panel, and
    Ctrl/⌘/Shift-click multiple selection with "Move to folder". The picker can browse folders.

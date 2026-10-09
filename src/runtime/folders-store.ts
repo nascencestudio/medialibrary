@@ -5,7 +5,7 @@
  * database says, then and on the next start. Every change runs through the
  * structural lock (lock.ts). Server only.
  */
-import { mkdir, rmdir } from 'node:fs/promises';
+import { mkdir, rm, rmdir } from 'node:fs/promises';
 import { dirPath, filePath, locate, moveFile, renameDir } from '../disk.js';
 import {
 	chainOf,
@@ -19,20 +19,25 @@ import {
 	newFolderId,
 	placementProblem,
 	slugFor,
+	subtreeOf,
 	uniqueSlug,
 } from '../folders.js';
 import type { MediaFolder, MediaKind } from '../types.js';
 import {
 	countByFolder,
-	deleteFolderRow,
+	deleteFolderRows,
+	deleteRows,
 	type FolderRow,
 	filesOf,
 	getRows,
 	insertFolderRow,
 	listFolderRows,
 	type MediaRow,
+	rowsInFolders,
+	type Usage,
 	updateFolderRow,
 	updateRow,
+	usageByItem,
 } from './db.js';
 import { withLock } from './lock.js';
 
@@ -173,22 +178,77 @@ export function changeFolder(id: string, input: { name?: unknown; parentId?: unk
 	});
 }
 
-/** Delete an empty folder (no items, no subfolders). */
-export function deleteFolder(id: string): Promise<void> {
+export interface FolderContents {
+	/** Folders below it (not counting itself). */
+	folders: number;
+	/** Items in it and in every folder below it. */
+	items: number;
+	/** How many of those items are used on pages. */
+	inUse: number;
+	/** The pages using them (at most 20). */
+	pages: Usage[];
+	/** More pages than listed. */
+	morePages: boolean;
+}
+
+/** What deleting a folder would delete, and which pages would lose media (for the confirmation). */
+export async function folderContents(id: string): Promise<FolderContents> {
+	const folders = await loadFolders();
+	if (!folders.has(id)) throw new FolderError(404, 'Not found');
+	const subtree = subtreeOf(id, folders);
+	const rows = await rowsInFolders([...subtree]);
+	const usage = await usageByItem(rows.map((row) => row.id));
+	const pages = new Map<string, Usage>();
+	for (const list of usage.values()) for (const page of list) pages.set(page.pageId, page);
+	return {
+		folders: subtree.size - 1,
+		items: rows.length,
+		inUse: usage.size,
+		pages: [...pages.values()].slice(0, 20),
+		morePages: pages.size > 20,
+	};
+}
+
+/**
+ * Delete a folder with everything in it: its subfolders, their items and the items' files,
+ * like a file manager. A folder with anything in it needs `confirm` to be its name
+ * (case-insensitive), the same check the dialog makes, so only a deliberate request deletes
+ * contents. Database first, then the disk; directories are removed only once empty (files
+ * someone else put there stay).
+ */
+export function deleteFolder(id: string, confirm?: unknown): Promise<{ folders: number; items: number }> {
 	return withLock(async () => {
 		const folders = await loadFolders();
-		if (!folders.has(id)) throw new FolderError(404, 'Not found');
-		if (childrenOf(id, folders).length > 0) {
-			throw new FolderError(409, 'This folder has folders in it. Move or delete them first.');
+		const folder = folders.get(id);
+		if (!folder) throw new FolderError(404, 'Not found');
+		const subtree = subtreeOf(id, folders);
+		const rows = await rowsInFolders([...subtree]);
+		const hasContents = rows.length > 0 || subtree.size > 1;
+		if (hasContents && nameKey(cleanFolderName(confirm)) !== nameKey(folder.name)) {
+			throw new FolderError(409, `Type the folder's name to delete it and everything in it.`);
 		}
-		if ((await countByFolder()).get(id)) {
-			throw new FolderError(409, 'This folder has media in it. Move or delete the items first.');
-		}
-		const dir = dirOf(id, folders);
-		await deleteFolderRow(id);
+		// Where everything is, before the folders are gone.
+		const root = await storageRoot();
+		const files = rows.flatMap((row) =>
+			filesOf(row).map((key) => ({ dir: dirOf(row.folderId ?? null, folders) ?? [], key })),
+		);
+		const dirs = [...subtree]
+			.map((folderId) => dirOf(folderId, folders))
+			.filter((d): d is string[] => d !== null)
+			.sort((a, b) => b.length - a.length); // deepest first
+		await deleteRows(rows.map((row) => row.id));
+		await deleteFolderRows([...subtree]);
 		invalidate();
-		// Only an empty directory is removed: anything else someone put there stays.
-		if (dir) await rmdir(dirPath(await storageRoot(), dir)).catch(() => {});
+		for (const { dir, key } of files) {
+			try {
+				const path = await locate(root, dir, key);
+				if (path) await rm(path, { force: true });
+			} catch (cause) {
+				console.warn('[medialibrary] could not remove file', key, cause);
+			}
+		}
+		for (const dir of dirs) await rmdir(dirPath(root, dir)).catch(() => {});
+		return { folders: subtree.size, items: rows.length };
 	});
 }
 
