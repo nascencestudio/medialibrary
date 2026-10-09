@@ -47,14 +47,14 @@
     "studiocms": "^0.6.0"
   },
   "dependencies": {
-    "@preact/signals": "2.11.2",
+    "@preact/signals": "2.11.3",
     "kysely": "0.29.6",
     "preact": "10.29.8",
     "sharp": "0.35.5",
     "ultrahtml": "1.7.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.14",
+    "@biomejs/biome": "2.5.15",
     "@types/node": "22.20.4",
     "astro": "7.3.5",
     "studiocms": "0.6.1",
