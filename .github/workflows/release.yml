@@ -1,10 +1,9 @@
 # Publishes @nascencestudio/medialibrary to npm with provenance (a signed attestation
 # linking the package to this workflow run and commit), when a GitHub release is published.
 #
-# Before the first release: on npmjs.com, add this repository and workflow (`release.yml`)
-# as the package's trusted publisher (no long-lived token). Until then, an `NPM_TOKEN`
-# repository secret (granular, publish-only) works as a fallback. Bump `version` in
-# package.json and tag the release `v<version>`.
+# Authentication is npm trusted publishing (OIDC; no token): this repository, `release.yml`,
+# environment `npm`, allowed actions: stage only. Bump `version` in package.json and tag the
+# release `v<version>`; then approve the staged version on npmjs.com (2FA).
 name: Release
 
 on:
@@ -45,6 +44,7 @@ jobs:
       - run: pnpm audit
       - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm publish --provenance --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Staged: the version goes live only after a maintainer approves it with 2FA (npmjs.com or
+      # `pnpm stage approve`). The trusted publisher keeps "allow npm publish" off, so a stolen
+      # workflow identity can only stage, never release.
+      - run: pnpm stage publish --provenance --access public --no-git-checks

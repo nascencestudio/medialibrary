@@ -54,7 +54,7 @@ scripts/copy-assets.mjs ← copies .astro/.css/.d.ts into dist/
 | `pnpm build` | Build to `dist/` |
 | `pnpm test` / `pnpm typecheck` / `pnpm lint` | Unit tests / types / Biome |
 | `pnpm audit` | Known vulnerabilities |
-| Release | Bump `version`, push, publish a GitHub release `v<version>` (`.github/workflows/release.yml`, provenance). Never publish locally. |
+| Release | Bump `version`, push, publish a GitHub release `v<version>` (`.github/workflows/release.yml`: **stages** it with provenance via trusted publishing), then a maintainer approves it on npmjs.com (2FA). Never publish locally; never enable "allow npm publish" on the trusted publisher. |
 
 ## Gotchas
 

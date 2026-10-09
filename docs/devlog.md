@@ -4,6 +4,15 @@ Newest first. What changed, what was learned, what's next.
 
 ---
 
+## 2026-10-09: Releases are staged
+
+- 0.1.0 published (first release with a bootstrap token). Trusted publisher added with allowed
+  actions **stage only**; a direct `pnpm publish` through it fails with 403 "OIDC permission
+  denied for this action".
+- `release.yml` now runs `pnpm stage publish --provenance` (no token): a release only goes live
+  after a maintainer approves it with 2FA, so a compromised workflow can't ship a version.
+- 0.1.1 (no code changes) validates the trusted publisher.
+
 ## 2026-10-08: Session 1: Own repository
 
 **Request:** the user created separate GitHub repositories (`nascencestudio/tapestry`,
