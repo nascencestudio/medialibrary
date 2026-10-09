@@ -244,7 +244,7 @@
 .ml-grid__item {
 	position: relative;
 }
-.ml-usage {
+.ml-usage-anchor {
 	position: absolute;
 	top: -0.5rem;
 	right: -0.5rem;
@@ -383,16 +383,138 @@
 	color: var(--ml-muted);
 	font-weight: 400;
 }
-.ml-folder-actions,
-.ml-folder-form {
+.ml-folder-row {
 	display: flex;
-	flex-wrap: wrap;
+	align-items: center;
+	gap: 2px;
+	border: 1px solid transparent;
+	border-radius: calc(var(--ml-radius) - 0.125rem);
+}
+.ml-folder-row > .ml-folder {
+	flex: 1;
+	min-width: 0;
+}
+.ml-folder-menu-button,
+.ml-folder-menu-spacer {
+	flex: none;
+	width: 1.75rem;
+	height: 1.75rem;
+}
+.ml-folder-menu-button {
+	display: grid;
+	place-items: center;
+	padding: 0;
+	color: var(--ml-muted);
+	background: none;
+	border: 0;
+	border-radius: calc(var(--ml-radius) - 0.125rem);
+	cursor: pointer;
+}
+.ml-folder-menu-button:hover,
+.ml-folder-menu-button[aria-expanded="true"] {
+	color: var(--ml-text);
+	background: var(--ml-surface-2);
+}
+.ml-folder-menu-button:focus-visible {
+	outline: 2px solid var(--ml-primary);
+	outline-offset: -2px;
+}
+/* Fixed, so the scrolling folder list doesn't clip it (placed from the ⋮ button). */
+.ml-menu {
+	position: fixed;
+	z-index: 1000;
+	min-width: 11rem;
+	margin: 0;
+	padding: 0.25rem;
+	list-style: none;
+	background: var(--ml-bg);
+	border: 1px solid var(--ml-border);
+	border-radius: var(--ml-radius);
+	box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
+}
+.ml-menu__item {
+	display: block;
+	width: 100%;
+	padding: 0.4rem 0.6rem;
+	font: inherit;
+	text-align: start;
+	color: inherit;
+	background: none;
+	border: 0;
+	border-radius: calc(var(--ml-radius) - 0.125rem);
+	cursor: pointer;
+}
+.ml-menu__item:hover,
+.ml-menu__item:focus-visible {
+	background: var(--ml-surface-2);
+	outline: none;
+}
+.ml-menu__item--danger {
+	color: var(--ml-danger-text);
+}
+.ml-folders__footer {
+	margin-top: 0.25rem;
+	padding-top: 0.25rem;
+	border-top: 1px solid var(--ml-border);
+}
+.ml-folders__new {
+	display: flex;
 	align-items: center;
 	gap: 0.375rem;
+	width: 100%;
+	padding: 0.375rem 0.5rem;
+	font: inherit;
+	color: inherit;
+	background: none;
+	border: 0;
+	border-radius: calc(var(--ml-radius) - 0.125rem);
+	cursor: pointer;
+}
+.ml-folders__new:hover {
+	background: var(--ml-surface-2);
+}
+.ml-folders__new:focus-visible {
+	outline: 2px solid var(--ml-primary);
+	outline-offset: -2px;
+}
+.ml-folder-edit {
+	padding-block: 0.125rem;
+}
+.ml-folder-form {
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
 }
 .ml-folder-form .ml-input {
-	width: auto;
-	min-width: 12rem;
+	flex: 1;
+	min-width: 0;
+	padding: 0.25rem 0.4rem;
+}
+.ml-icon-button {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 1.75rem;
+	height: 1.75rem;
+	padding: 0;
+	color: inherit;
+	background: var(--ml-surface-2);
+	border: 1px solid var(--ml-border);
+	border-radius: calc(var(--ml-radius) - 0.125rem);
+	cursor: pointer;
+}
+.ml-icon-button--primary {
+	color: var(--text-inverted, #fff);
+	background: var(--ml-primary);
+	border-color: var(--ml-primary);
+}
+.ml-icon-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+.ml-icon-button:focus-visible {
+	outline: 2px solid var(--ml-primary);
+	outline-offset: 1px;
 }
 .ml-multi-list {
 	margin: 0;

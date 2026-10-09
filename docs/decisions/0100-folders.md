@@ -57,10 +57,12 @@ folder names into public URLs (they're often internal), and need folder paths in
 8. **Usage is visible:** each card carries a badge with the number of pages using the item, which
    opens the list of those pages (linked to their editors). One query per listed page of items
    (`usageByItem`), not one per item.
-9. **UI:** a folder list (All media, Not in a folder, the tree; drop target for dragged items),
-   the current folder's bar (breadcrumb, New folder/subfolder, Rename, Move, Delete), uploads and
-   remote videos into the folder being viewed, a Folder field in the details panel, and
-   Ctrl/⌘/Shift-click multiple selection with "Move to folder". The picker can browse folders.
+9. **UI:** a folder list (All media, Not in a folder, the tree; drop target for dragged items).
+   Each folder has a ⋮ menu (New subfolder, Rename, Move…, Delete folder…; keyboard: arrows,
+   Escape); renaming and new subfolders happen in place in the list, moving and deleting in
+   dialogs; "+ New folder" is at the bottom of the list. A breadcrumb sits above the grid. Uploads
+   and remote videos go into the folder being viewed; the details panel has a Folder field;
+   Ctrl/⌘/Shift-click selects several items to move. The picker can browse folders.
 
 ## Alternatives considered
 

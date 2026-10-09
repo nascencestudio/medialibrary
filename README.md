@@ -51,7 +51,8 @@ Tapestry finds the media library on its own when both are installed.
 
 ## Folders
 
-Create, rename, move and delete folders on the Media page; move items with the details
+Create, rename, move and delete folders on the Media page (each folder's ⋮ menu, and
+"+ New folder" at the bottom of the folder list); move items with the details
 panel, by dragging cards onto a folder, or several at once (Ctrl/⌘/Shift-click). Uploads go
 into the folder you're viewing. Deleting a folder deletes everything in it, after you type
 its name; the confirmation lists the pages that use any of it.

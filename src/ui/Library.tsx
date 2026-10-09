@@ -630,6 +630,7 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 					}}
 					onDropItems={manage ? (ids, folderId) => void moveItems(ids, folderId) : undefined}
 					dimEmpty={restricted}
+					manage={manage ? manageFolders : undefined}
 				/>
 				<div class="ml-grid-wrap">
 					<FolderBar
@@ -641,7 +642,6 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 							selected.value = null;
 							multi.value = [];
 						}}
-						manage={manage ? manageFolders : undefined}
 					/>
 					{loadError.value && (
 						<p class="ml-error" role="alert">

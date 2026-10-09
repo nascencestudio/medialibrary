@@ -87,7 +87,7 @@ export function UsageBadge({ itemId, itemName, count }: { itemId: string; itemNa
 	};
 
 	return (
-		<span class="ml-usage" ref={root}>
+		<span class="ml-usage-anchor" ref={root}>
 			<button
 				type="button"
 				class="ml-usage-badge"

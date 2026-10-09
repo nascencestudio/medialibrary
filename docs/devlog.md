@@ -46,6 +46,14 @@ names, user-typed paths, atomicity, one-way sync). [ADR 0100](decisions/0100-fol
   per page of items (`usageByItem`). Covered in the playground's media-tapestry, media-folders and
   a11y suites (dialog audited in both themes).
 
+- Folder actions moved into a ⋮ menu per folder (user feedback): New subfolder and Rename edit in
+  place in the list, Move and Delete open dialogs; "+ New folder" at the bottom under a separator;
+  the bar above the grid is only the breadcrumb. The menu is `position: fixed` so the scrolling list
+  doesn't clip it.
+- Fixed: the usage badge's wrapper reused the class `ml-usage` of the details panel's "Used on"
+  section, which then floated over the toolbar. Renamed (`ml-usage-anchor`); the media suite checks
+  the section stays in normal layout.
+
 ### Next
 - Release 0.2.0 (staged; approve on npm), then switch the playground to it.
 
