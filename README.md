@@ -28,11 +28,11 @@ pnpm add @nascencestudio/medialibrary
 
 ```js
 // studiocms.config.mjs
-import mediaLibrary from '@nascencestudio/medialibrary';
-import { defineStudioCMSConfig } from 'studiocms/config';
+import mediaLibrary from "@nascencestudio/medialibrary";
+import { defineStudioCMSConfig } from "studiocms/config";
 
 export default defineStudioCMSConfig({
-  plugins: [mediaLibrary({ storageDir: './data/media' })],
+  plugins: [mediaLibrary({ storageDir: "./data/media" })],
 });
 ```
 
@@ -40,14 +40,14 @@ Tapestry finds the media library on its own when both are installed.
 
 ## Options
 
-| Option | Default | |
-| --- | --- | --- |
-| `storageDir` | `./data/media` | Where files are stored (`MEDIA_DIR` overrides it) |
-| `publicPath` | `/files` | URL prefix files are served from |
-| `limits` | image 10 MB, video 200 MB, audio 100 MB, document 25 MB | Per-kind upload limits (admins can change them) |
-| `allowSvg` | `true` | Whether sanitized SVG uploads are allowed (admins can change it) |
-| `maxUploadSize` | 1 GB | The highest limit admins can set (`MEDIA_MAX_UPLOAD_MB` overrides it) |
-| `imageWidths` | `[480, 960, 1440, 1920]` | Widths of the resized copies; `[]` turns resizing off |
+| Option          | Default                                                 |                                                                       |
+| --------------- | ------------------------------------------------------- | --------------------------------------------------------------------- |
+| `storageDir`    | `./data/media`                                          | Where files are stored (`MEDIA_DIR` overrides it)                     |
+| `publicPath`    | `/files`                                                | URL prefix files are served from                                      |
+| `limits`        | image 10 MB, video 200 MB, audio 100 MB, document 25 MB | Per-kind upload limits (admins can change them)                       |
+| `allowSvg`      | `true`                                                  | Whether sanitized SVG uploads are allowed (admins can change it)      |
+| `maxUploadSize` | 1 GB                                                    | The highest limit admins can set (`MEDIA_MAX_UPLOAD_MB` overrides it) |
+| `imageWidths`   | `[480, 960, 1440, 1920]`                                | Widths of the resized copies; `[]` turns resizing off                 |
 
 ## Folders
 
@@ -105,6 +105,8 @@ What keeps that accountable:
   and each one is approved by a person with two-factor authentication.
 
 Found a problem? Please [open an issue](https://github.com/nascencestudio/medialibrary/issues).
+
+**NOTE**: This is mostly an expirement of co-authoring something with AI. If you find it useful, awesome.
 
 ## License
 
