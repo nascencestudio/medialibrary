@@ -84,6 +84,28 @@ import Media from '@nascencestudio/medialibrary/Media.astro';
 More: [the design decisions](docs/decisions/0016-media-library.md) ([folders](docs/decisions/0100-folders.md))
 and the [deployment guide](https://github.com/nascencestudio/tapestry/blob/main/docs/guides/deployment.md) (file storage, upload limits behind a proxy).
 
+## How it's built
+
+The media library is developed with an AI coding assistant (Anthropic's Claude), directed by its
+maintainer at Nascence Studio, who sets the requirements, makes the decisions and checks the
+results. Commits written with its help say so (`Co-Authored-By`).
+
+What keeps that accountable:
+
+- **Decisions are written down** in [docs/decisions](docs/decisions/) (folders, for example,
+  in [ADR 0100](docs/decisions/0100-folders.md)), and each working session is recorded in the
+  [devlog](docs/devlog.md).
+- **Behaviour is tested.** Unit tests cover file type detection, SVG sanitizing, captions,
+  folder names and the disk layout, with adversarial cases for every input that comes from an
+  upload or a request. Browser tests drive the Media page, the picker and folders in Chrome;
+  they live in [tapestry-playground](https://github.com/nascencestudio/tapestry-playground).
+- **Uploads are untrusted.** Types come from the file's bytes, never its name; SVGs are rebuilt
+  from an allowlist; files are served with a sandboxing Content-Security-Policy.
+- **Releases are traceable.** Versions are published from GitHub Actions with npm provenance,
+  and each one is approved by a person with two-factor authentication.
+
+Found a problem? Please [open an issue](https://github.com/nascencestudio/medialibrary/issues).
+
 ## License
 
 MIT © Nascence Studio
