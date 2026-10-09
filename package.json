@@ -55,7 +55,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
-    "@types/node": "22.20.4",
+    "@types/node": "26.6.2",
     "astro": "7.3.5",
     "studiocms": "0.6.1",
     "typescript": "6.0.3",
