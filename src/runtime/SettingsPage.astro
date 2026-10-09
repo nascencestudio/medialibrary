@@ -1,0 +1,279 @@
+---
+/**
+ * The Media Library plugin page in the StudioCMS dashboard (Plugins → Media
+ * Library → Uploads): upload size limits per kind and the SVG switch. Served
+ * at the URL StudioCMS links plugins to; StudioCMS 0.6.1 builds that link
+ * without a slash (`/<dashboard>/plugins@nascencestudio/medialibrary`, known
+ * issue #27), so the page answers there and at the intended
+ * `/<dashboard>/plugins/@nascencestudio/medialibrary`. Admins only. Saved by
+ * settings-endpoint.ts. See ADR 0018.
+ */
+/// <reference types="studiocms/v/types" />
+/// <reference path="../virtual.d.ts" />
+import { StudioCMSRoutes } from 'studiocms:lib';
+import { Button } from 'studiocms:ui/components/button';
+import { Icon } from 'studiocms:ui/components/icon';
+import config from 'virtual:medialibrary/config';
+import PageHeader from 'studiocms/frontend/components/dashboard/PageHeader.astro';
+import SidebarLink from 'studiocms/frontend/components/dashboard/SidebarLink.astro';
+import Layout from 'studiocms/frontend/layouts/DashboardLayout.astro';
+import { RESIZABLE_MIMES } from '../responsive.js';
+import { FORM, MB, UPLOAD_KINDS } from '../settings.js';
+import { imagesMissingVariants } from './db.js';
+import { loadMediaSettings, settingsBounds } from './settings-store.js';
+import { minResizableWidth } from './variants-endpoint.js';
+import { getMediaViewer } from './viewer.js';
+
+export const prerender = false;
+
+const dashboardIndex = StudioCMSRoutes.mainLinks.dashboardIndex.replace(/\/$/, '');
+// The routes match "/dashboard" and any other first segment; only the real dashboard path is this page.
+if (!Astro.url.pathname.startsWith(`${dashboardIndex}/plugins`)) {
+	return new Response(null, { status: 404 });
+}
+const viewer = await getMediaViewer(Astro);
+if (!viewer.isLoggedIn) return Astro.redirect(StudioCMSRoutes.authLinks.loginURL);
+if (!viewer.isAdmin) return Astro.redirect(dashboardIndex);
+
+const { siteConfig, defaultLang: lang, security } = Astro.locals.StudioCMS;
+const here = Astro.url.pathname;
+const bounds = settingsBounds();
+const settings = await loadMediaSettings();
+const maxMb = Math.floor(bounds.maxUploadSize / MB);
+const saved = Astro.url.searchParams.has('saved');
+const variantsMade = Astro.url.searchParams.get('variants');
+const variantsRemaining = Number(Astro.url.searchParams.get('remaining') ?? 0);
+const missing =
+	config.imageWidths.length > 0
+		? (await imagesMissingVariants(minResizableWidth(), RESIZABLE_MIMES, 1).catch(() => ({ total: 0 }))).total
+		: 0;
+const errors = new Set((Astro.url.searchParams.get('error') ?? '').split(',').filter(Boolean));
+const LABELS = { image: 'Images', video: 'Videos', audio: 'Audio', document: 'Documents' } as const;
+const toMb = (bytes: number) => Math.max(1, Math.round(bytes / MB));
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+---
+
+<Layout
+	title="Media Library: Uploads"
+	description="Media library settings"
+	sidebar="double"
+	{lang}
+	config={siteConfig}
+	currentUser={security?.userSessionData ?? null}
+>
+	<div slot="double-sidebar" class="ml-inner-sidebar" data-media-settings-nav>
+		<div class="ml-inner-sidebar__header">
+			{/* StudioCMS's double-sidebar script expects #back-to-outer and #show-page (mobile navigation). */}
+			<Button variant="solid" color="primary" size="md" id="back-to-outer" class="mobile-btn mid-size-btn">
+				<Icon name="heroicons:arrow-left" width={24} height={24} slot="start-content" />
+			</Button>
+			<p class="ml-inner-sidebar__title">Media Library</p>
+			<Button variant="solid" color="primary" size="md" id="show-page" class="mobile-btn">
+				<Icon name="heroicons:x-mark" width={24} height={24} slot="start-content" />
+			</Button>
+		</div>
+		<div class="ml-inner-sidebar__links">
+			<SidebarLink icon="heroicons:arrow-up-tray" href={here} aria-current="page">Uploads</SidebarLink>
+		</div>
+	</div>
+
+	<div slot="header">
+		<PageHeader title="Media Library: Uploads" />
+	</div>
+
+	<div class="ml-settings" data-media-settings>
+		{saved && (
+			<p class="ml-settings__notice" role="status" data-media-settings-saved>
+				Saved. New uploads use these settings now.
+			</p>
+		)}
+		{errors.size > 0 && (
+			<p class="ml-settings__notice ml-settings__notice--error" role="alert" data-media-settings-error>
+				Nothing was saved: some limits weren't valid. Limits are whole megabytes from 1 to {maxMb}.
+			</p>
+		)}
+		<form method="post" action={config.settingsRoute}>
+			<input type="hidden" name="return" value={here} />
+			<fieldset class="ml-settings__group">
+				<legend>Maximum file size</legend>
+				<p class="ml-settings__help">
+					Applies to new uploads; files already in the library stay. The site's developers set the highest
+					allowed value ({maxMb} MB).
+				</p>
+				<div class="ml-settings__limits">
+					{UPLOAD_KINDS.map((kind) => (
+						<label class="ml-settings__limit">
+							<span>{LABELS[kind]}</span>
+							<span class="ml-settings__input">
+								<input
+									type="number"
+									name={FORM.limit(kind)}
+									value={toMb(settings.limits[kind])}
+									min="1"
+									max={maxMb}
+									step="1"
+									required
+									inputmode="numeric"
+									aria-invalid={errors.has(kind) ? 'true' : undefined}
+									data-media-settings-limit={kind}
+								/>
+								MB
+							</span>
+						</label>
+					))}
+				</div>
+			</fieldset>
+			<fieldset class="ml-settings__group">
+				<legend>SVG images</legend>
+				<label class="ml-settings__check">
+					<input type="checkbox" name={FORM.allowSvg} checked={settings.allowSvg} data-media-settings-svg />
+					Allow SVG uploads
+				</label>
+				<p class="ml-settings__help">
+					SVGs are cleaned of scripts and outside references when uploaded, and served so they can't run code.
+					Turn this off if editors don't need vector images. SVGs already in the library stay usable.
+				</p>
+			</fieldset>
+			<button type="submit" class="ml-settings__save" data-media-settings-save>Save</button>
+		</form>
+		<form method="post" action={`${config.settingsRoute}/variants`} class="ml-settings__group" data-media-settings-variants>
+			<input type="hidden" name="return" value={here} />
+			<h2 class="ml-settings__heading">Image sizes</h2>
+			{variantsMade !== null && (
+				<p class="ml-settings__notice" role="status" data-media-variants-result>
+					Made resized copies of {variantsMade} image{variantsMade === '1' ? '' : 's'}.
+					{variantsRemaining > 0 ? ` ${variantsRemaining} still need them: run it again.` : ''}
+				</p>
+			)}
+			<p class="ml-settings__help">
+				{config.imageWidths.length > 0
+					? `New images get smaller copies (${config.imageWidths.join(', ')} pixels wide) so pages load the right size for each screen.`
+					: 'Resized copies are turned off in the site configuration.'}
+				{missing > 0 && ` ${missing} existing image${missing === 1 ? ' has' : 's have'} none yet.`}
+			</p>
+			{missing > 0 && (
+				<button type="submit" class="ml-settings__save" data-media-variants-run>
+					Create resized copies
+				</button>
+			)}
+		</form>
+	</div>
+</Layout>
+
+<style>
+	.ml-inner-sidebar {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		min-height: 100vh;
+		height: 100%;
+		padding: 1.5rem;
+	}
+	.ml-inner-sidebar__header {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+	.ml-inner-sidebar__title {
+		flex: 1;
+		margin: 0;
+		font-weight: 600;
+		font-size: 1.125rem;
+	}
+	.ml-inner-sidebar__links {
+		display: flex;
+		flex-direction: column;
+		gap: 0.375rem;
+	}
+	.ml-settings {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		max-width: 48rem;
+	}
+	.ml-settings form {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+	.ml-settings__notice {
+		margin: 0;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.5rem;
+		border: 1px solid var(--success-base, hsl(142 60% 35%));
+	}
+	.ml-settings__notice--error {
+		border-color: var(--danger-base, hsl(0 70% 50%));
+	}
+	.ml-settings__group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		margin: 0;
+		padding: 0.75rem 1rem 1rem;
+		border: 1px solid var(--border, hsl(263 5% 68%));
+		border-radius: 0.5rem;
+	}
+	.ml-settings__group legend {
+		padding: 0 0.375rem;
+		font-weight: 600;
+	}
+	.ml-settings__heading {
+		margin: 0;
+		font-size: 1rem;
+	}
+	.ml-settings__help {
+		margin: 0;
+		line-height: 1.5;
+		color: var(--text-muted, inherit);
+	}
+	.ml-settings__limits {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+		gap: 0.75rem 1.25rem;
+	}
+	.ml-settings__limit {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	.ml-settings__input {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.ml-settings__input input {
+		width: 7rem;
+		font: inherit;
+		padding: 0.375rem 0.5rem;
+		border-radius: 0.375rem;
+		border: 1px solid var(--border, hsl(263 5% 68%));
+		background: var(--background-base, transparent);
+		color: inherit;
+	}
+	.ml-settings__input input[aria-invalid='true'] {
+		border-color: var(--danger-base, hsl(0 70% 50%));
+	}
+	.ml-settings__check {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		cursor: pointer;
+	}
+	.ml-settings__save {
+		align-self: flex-start;
+		font: inherit;
+		font-weight: 600;
+		padding: 0.5rem 1.25rem;
+		border-radius: 0.5rem;
+		border: 0;
+		color: #fff;
+		background: var(--primary-base, hsl(259 74% 45%));
+		cursor: pointer;
+	}
+	.ml-settings__save:focus-visible,
+	.ml-settings input:focus-visible {
+		outline: 2px solid var(--primary-base, hsl(259 74% 45%));
+		outline-offset: 2px;
+	}
+</style>

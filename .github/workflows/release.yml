@@ -1,0 +1,50 @@
+# Publishes @nascencestudio/medialibrary to npm with provenance (a signed attestation
+# linking the package to this workflow run and commit), when a GitHub release is published.
+#
+# Before the first release: on npmjs.com, add this repository and workflow (`release.yml`)
+# as the package's trusted publisher (no long-lived token). Until then, an `NPM_TOKEN`
+# repository secret (granular, publish-only) works as a fallback. Bump `version` in
+# package.json and tag the release `v<version>`.
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # npm provenance and trusted publishing (OIDC)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: The tag matches the package version
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          test "$version" = "${GITHUB_REF_NAME#v}" || { echo "package.json is $version, the release is $GITHUB_REF_NAME"; exit 1; }
+      - run: pnpm lint
+      - run: pnpm audit
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm publish --provenance --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

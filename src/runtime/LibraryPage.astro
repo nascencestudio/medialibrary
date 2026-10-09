@@ -1,0 +1,25 @@
+---
+/**
+ * Body of the dashboard's Media page (editors and above). The page itself
+ * (layout, sidebar entry, permission check) comes from StudioCMS's plugin
+ * dashboard pages.
+ */
+---
+
+<div class="media-library-host" data-media-library-host></div>
+
+<script>
+	import { mountLibrary } from '../ui/mount.js';
+
+	let cleanup: (() => void) | undefined;
+	function init() {
+		const host = document.querySelector<HTMLElement>('[data-media-library-host]');
+		if (host) cleanup = mountLibrary(host) ?? cleanup;
+	}
+	init();
+	document.addEventListener('astro:page-load', init);
+	document.addEventListener('astro:before-swap', () => {
+		cleanup?.();
+		cleanup = undefined;
+	});
+</script>

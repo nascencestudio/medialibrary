@@ -1,0 +1,95 @@
+---
+/**
+ * Renders a media item (`@nascencestudio/medialibrary/Media.astro`):
+ * an image, a video or audio player, a remote video embed, or a document link.
+ * Pass `item` (already looked up) or `id`. Renders nothing for missing items.
+ *
+ * URLs come from stored, validated data only: uploaded files from their
+ * storage key, remote embeds from the provider's validated video id.
+ *
+ * Images get a `srcset` of their resized copies (pass `sizes` to describe the
+ * rendered width; default 100vw) and their focal point as `object-position`,
+ * so `object-fit: cover` crops keep the chosen spot. Videos get their caption
+ * tracks.
+ */
+import { formatBytes } from '../format.js';
+import { focalPosition } from '../meta.js';
+import type { MediaItem } from '../types.js';
+import { getMediaItem } from './server.js';
+
+interface Props {
+	item?: MediaItem | null;
+	id?: string;
+	/** Class on the rendered element. */
+	class?: string;
+	/** Image loading strategy. Default 'lazy'. */
+	loading?: 'lazy' | 'eager';
+	/** Override the stored alt text (images). */
+	alt?: string;
+	/** Images: the `sizes` attribute for the srcset, e.g. "(min-width: 60rem) 50vw, 100vw". Default 100vw. */
+	sizes?: string;
+}
+
+const { id, class: className, loading = 'lazy', alt, sizes = '100vw' } = Astro.props;
+const item = Astro.props.item ?? (id ? await getMediaItem(id) : null);
+const ext = item?.url.split('.').pop()?.toUpperCase();
+---
+
+{
+	item?.kind === 'image' && (
+		<img
+			class={className}
+			src={item.url}
+			alt={alt ?? item.alt}
+			width={item.width ?? undefined}
+			height={item.height ?? undefined}
+			srcset={item.srcset ?? undefined}
+			sizes={item.srcset ? sizes : undefined}
+			loading={loading}
+			decoding="async"
+			style={item.focalPoint ? `object-position: ${focalPosition(item.focalPoint)}` : undefined}
+		/>
+	)
+}
+{
+	item?.kind === 'video' && (
+		<video class={className} src={item.url} controls preload="metadata" width={item.width ?? undefined} height={item.height ?? undefined}>
+			{item.tracks.map((track) => (
+				<track kind={track.kind} src={track.url} srclang={track.srclang} label={track.label} />
+			))}
+			<a href={item.url}>{item.name}</a>
+		</video>
+	)
+}
+{
+	item?.kind === 'audio' && (
+		<audio class={className} src={item.url} controls preload="metadata">
+			<a href={item.url}>{item.name}</a>
+		</audio>
+	)
+}
+{
+	item?.kind === 'remoteVideo' && item.embedUrl && (
+		<div class:list={['nascence-media-embed', className]} style="position: relative; aspect-ratio: 16 / 9;">
+			<iframe
+				src={item.embedUrl}
+				title={item.name}
+				loading="lazy"
+				allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+				allowfullscreen
+				referrerpolicy="strict-origin-when-cross-origin"
+				style="position: absolute; inset: 0; width: 100%; height: 100%; border: 0;"
+			/>
+		</div>
+	)
+}
+{
+	item?.kind === 'document' && (
+		<a class={className} href={item.url} download={item.name}>
+			{item.name}
+			<span class="nascence-media-meta">
+				({ext}, {formatBytes(item.size)})
+			</span>
+		</a>
+	)
+}
