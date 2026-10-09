@@ -54,6 +54,9 @@ names, user-typed paths, atomicity, one-way sync). [ADR 0100](decisions/0100-fol
   section, which then floated over the toolbar. Renamed (`ml-usage-anchor`); the media suite checks
   the section stays in normal layout.
 
+- The folder list reports when it has loaded (`data-media-folders="ready"`, `aria-busy` until then):
+  its rows arriving moved "+ New folder" under a test's click (flaky e2e).
+
 ### Next
 - Release 0.2.0 (staged; approve on npm), then switch the playground to it.
 

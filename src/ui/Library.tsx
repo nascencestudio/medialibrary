@@ -158,6 +158,7 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 	const folders = useSignal<MediaFolder[]>([]);
 	const topLevelCount = useSignal(0);
 	const libraryTotal = useSignal(0);
+	const foldersLoaded = useSignal(false);
 	const view = useSignal<FolderView>('all');
 	/** Items selected together (Ctrl/⌘/Shift-click), Media page only. */
 	const multi = useSignal<string[]>([]);
@@ -192,6 +193,7 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 				folders.value = result.folders;
 				topLevelCount.value = result.topLevelCount;
 				libraryTotal.value = result.total;
+				foldersLoaded.value = true;
 				const current = view.value;
 				if (current !== 'all' && current !== null && !result.folders.some((f) => f.id === current)) {
 					view.value = null;
@@ -630,6 +632,7 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 					}}
 					onDropItems={manage ? (ids, folderId) => void moveItems(ids, folderId) : undefined}
 					dimEmpty={restricted}
+					ready={foldersLoaded.value}
 					manage={manage ? manageFolders : undefined}
 				/>
 				<div class="ml-grid-wrap">

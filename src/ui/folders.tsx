@@ -106,6 +106,8 @@ interface NavProps {
 	dimEmpty?: boolean;
 	/** Folder management: ⋮ menus and "New folder" (Media page only). */
 	manage?: FolderManage;
+	/** False until the folders have loaded (the list then grows, moving what's below). */
+	ready?: boolean;
 }
 
 /** Items in each folder including its subfolders. */
@@ -239,7 +241,17 @@ function FolderMenu({ folder, onAction }: { folder: MediaFolder; onAction: (acti
 }
 
 /** The folder list: All media, Not in a folder, the tree, then "+ New folder" (Media page). */
-export function FolderNav({ folders, topLevelCount, total, view, onView, onDropItems, dimEmpty, manage }: NavProps) {
+export function FolderNav({
+	folders,
+	topLevelCount,
+	total,
+	view,
+	onView,
+	onDropItems,
+	dimEmpty,
+	manage,
+	ready = true,
+}: NavProps) {
 	const over = useSignal<string | null>(null);
 	/** An open name field: a new top-level folder, a new subfolder of a folder, or a rename. */
 	const editing = useSignal<{ kind: 'create'; parentId: string | null } | { kind: 'rename'; id: string } | null>(null);
@@ -332,7 +344,7 @@ export function FolderNav({ folders, topLevelCount, total, view, onView, onDropI
 
 	const edit = editing.value;
 	return (
-		<nav class="ml-folders" aria-label="Folders" data-media-folders>
+		<nav class="ml-folders" aria-label="Folders" aria-busy={!ready} data-media-folders={ready ? 'ready' : 'loading'}>
 			<ul>
 				{row('all', 'all', 'All media', total)}
 				{row('top', null, 'Not in a folder', topLevelCount)}
