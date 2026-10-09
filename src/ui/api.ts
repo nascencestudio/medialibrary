@@ -80,7 +80,11 @@ export const addRemoteVideo = (url: string, folderId: string | null = null) =>
 		body: JSON.stringify({ url, folderId }),
 	});
 
-export const listFolders = () => request<{ folders: MediaFolder[]; topLevelCount: number; total: number }>('/folders');
+/** Folders with item counts (only of `kinds`, when given). */
+export const listFolders = (kinds?: readonly MediaKind[]) =>
+	request<{ folders: MediaFolder[]; topLevelCount: number; total: number }>(
+		`/folders${kinds?.length ? `?kind=${kinds.join(',')}` : ''}`,
+	);
 
 const sendJson = (method: string, body: unknown): RequestInit => ({
 	method,

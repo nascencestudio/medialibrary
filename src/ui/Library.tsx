@@ -61,6 +61,20 @@ const KIND_SINGULAR: Record<MediaKind, string> = {
 	remoteVideo: 'Remote video',
 };
 const ALL_KINDS: MediaKind[] = ['image', 'video', 'audio', 'document', 'remoteVideo'];
+const KIND_PLURAL: Record<MediaKind, string> = {
+	image: 'images',
+	video: 'videos',
+	audio: 'audio files',
+	document: 'documents',
+	remoteVideo: 'video links',
+};
+
+/** "Only images can be used here." / "Only images and videos can be used here." */
+export function acceptNote(kinds: readonly MediaKind[]): string {
+	const names = kinds.map((k) => KIND_PLURAL[k]);
+	const list = names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+	return `Only ${list} can be used here.`;
+}
 const PAGE = 60;
 
 const formatSize = formatBytes;
@@ -144,6 +158,8 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 	/** Items selected together (Ctrl/⌘/Shift-click), Media page only. */
 	const multi = useSignal<string[]>([]);
 	const manage = mode === 'manage';
+	/** The picker for a field that takes only some kinds: counts and notes cover just those. */
+	const restricted = mode === 'pick' && kinds.length < ALL_KINDS.length;
 	/** Where new uploads and remote videos go: the folder being viewed, else the top level. */
 	const targetFolder = () => (view.value === 'all' ? null : view.value);
 	const folderName = (id: string | null) =>
@@ -167,7 +183,7 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 			.catch(() => {});
 
 	const refreshFolders = () =>
-		listFolders()
+		listFolders(restricted ? kinds : undefined)
 			.then((result) => {
 				folders.value = result.folders;
 				topLevelCount.value = result.topLevelCount;
@@ -444,6 +460,11 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 				void uploadFiles(e.dataTransfer.files);
 			}}
 		>
+			{restricted && (
+				<p class="ml-accept-note" data-media-accept-note>
+					{acceptNote(kinds)}
+				</p>
+			)}
 			<div class="ml-toolbar">
 				<input
 					class="ml-input ml-search"
@@ -593,6 +614,7 @@ export function Library({ mode, accept, onPick, onCancel }: LibraryProps) {
 						multi.value = [];
 					}}
 					onDropItems={manage ? (ids, folderId) => void moveItems(ids, folderId) : undefined}
+					dimEmpty={restricted}
 				/>
 				<div class="ml-grid-wrap">
 					<FolderBar

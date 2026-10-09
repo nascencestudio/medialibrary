@@ -235,6 +235,15 @@
 	/* StudioCMS's primary is light purple in its dark theme: its inverted text keeps the contrast. */
 	color: var(--text-inverted, #fff);
 }
+/* Nothing usable here (e.g. no images for an image field): still clickable, to upload into it. */
+.ml-folder--empty:not([aria-current="true"]) {
+	color: var(--ml-muted);
+	opacity: 0.6;
+}
+.ml-accept-note {
+	margin: -0.25rem 0 0;
+	color: var(--ml-muted);
+}
 .ml-folder--over {
 	border-color: var(--ml-primary);
 	border-style: dashed;

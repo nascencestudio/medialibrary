@@ -393,17 +393,17 @@ export async function setRowFiles(
 	await db().updateTable(TABLE).set(patch).where('id', '=', id).execute();
 }
 
-/** Items per folder (the top level under the key ''). */
-export async function countByFolder(): Promise<Map<string, number>> {
+/** Items per folder (the top level under the key ''), optionally only of some kinds. */
+export async function countByFolder(kinds?: readonly MediaKind[]): Promise<Map<string, number>> {
 	await ensureTable();
-	const rows: Array<{ folderId: string | null; total: number | string }> = await db()
+	let query = db()
 		.selectFrom(TABLE)
 		.select((eb: { fn: { countAll: () => { as: (n: string) => unknown } } }) => [
 			'folderId',
 			eb.fn.countAll().as('total'),
-		])
-		.groupBy('folderId')
-		.execute();
+		]);
+	if (kinds && kinds.length > 0) query = query.where('kind', 'in', [...kinds]);
+	const rows: Array<{ folderId: string | null; total: number | string }> = await query.groupBy('folderId').execute();
 	return new Map(rows.map((r) => [r.folderId ?? '', Number(r.total)]));
 }
 

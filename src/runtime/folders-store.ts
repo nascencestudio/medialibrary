@@ -21,7 +21,7 @@ import {
 	slugFor,
 	uniqueSlug,
 } from '../folders.js';
-import type { MediaFolder } from '../types.js';
+import type { MediaFolder, MediaKind } from '../types.js';
 import {
 	countByFolder,
 	deleteFolderRow,
@@ -78,9 +78,14 @@ const toFolder = (row: FolderRow, counts: Map<string, number>): MediaFolder => (
 	itemCount: counts.get(row.id) ?? 0,
 });
 
-/** Every folder with its item count, plus the top level's count and the total. */
-export async function listFolders(): Promise<{ folders: MediaFolder[]; topLevelCount: number; total: number }> {
-	const [folders, counts] = await Promise.all([loadFolders(), countByFolder()]);
+/**
+ * Every folder with its item count, plus the top level's count and the total. With `kinds`,
+ * only items of those kinds are counted (the picker counts what a field can use).
+ */
+export async function listFolders(
+	kinds?: readonly MediaKind[],
+): Promise<{ folders: MediaFolder[]; topLevelCount: number; total: number }> {
+	const [folders, counts] = await Promise.all([loadFolders(), countByFolder(kinds)]);
 	const sorted = [...folders.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 	return {
 		folders: sorted.map((row) => toFolder(row, counts)),

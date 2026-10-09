@@ -91,18 +91,35 @@ interface NavProps {
 	onView: (view: FolderView) => void;
 	/** Items dropped on a folder (null: the top level). Absent: no drop targets. */
 	onDropItems?: (ids: string[], folderId: string | null) => void;
+	/** Grey out entries with nothing in them (counting subfolders), e.g. nothing a picker's field can use. */
+	dimEmpty?: boolean;
+}
+
+/** Items in each folder including its subfolders. */
+function subtreeCounts(folders: readonly MediaFolder[]): Map<string, number> {
+	const totals = new Map(folders.map((f) => [f.id, f.itemCount]));
+	// Deepest first, so each folder's total is complete before it's added to its parent.
+	for (const { folder } of treeOrder(folders).reverse()) {
+		if (folder.parentId && totals.has(folder.parentId)) {
+			totals.set(folder.parentId, (totals.get(folder.parentId) ?? 0) + (totals.get(folder.id) ?? 0));
+		}
+	}
+	return totals;
 }
 
 /** The folder list: All media, Not in a folder, then the tree. */
-export function FolderNav({ folders, topLevelCount, total, view, onView, onDropItems }: NavProps) {
+export function FolderNav({ folders, topLevelCount, total, view, onView, onDropItems, dimEmpty }: NavProps) {
 	const over = useSignal<string | null>(null);
+	const totals = dimEmpty ? subtreeCounts(folders) : null;
 	const row = (key: string, target: FolderView, label: string, count: number, depth = 0, folder?: MediaFolder) => {
 		const dropTarget = onDropItems && target !== 'all' ? (target as string | null) : undefined;
+		const empty = totals !== null && (folder ? (totals.get(folder.id) ?? 0) : count) === 0;
 		return (
 			<li key={key}>
 				<button
 					type="button"
-					class={`ml-folder${over.value === key ? ' ml-folder--over' : ''}`}
+					class={`ml-folder${over.value === key ? ' ml-folder--over' : ''}${empty ? ' ml-folder--empty' : ''}`}
+					data-media-folder-empty={empty ? '' : undefined}
 					style={{ paddingInlineStart: `${0.5 + depth * 0.875}rem` }}
 					aria-current={view === target ? 'true' : undefined}
 					data-media-folder={folder ? folder.id : key}

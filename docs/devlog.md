@@ -33,6 +33,11 @@ names, user-typed paths, atomicity, one-way sync). [ADR 0100](decisions/0100-fol
   silently reused one leftover browser and its cached scripts (stale code looked like a bug). It
   now uses a port Chrome picks itself (the playground's devlog has details).
 
+- Picker (user feedback): folder counts cover only what the field accepts (`GET /folders?kind=`),
+  entries with nothing usable (counting subfolders) are greyed out but still clickable (to upload
+  into), and a note says what the field takes ("Only images can be used here."). The Media page
+  keeps counting everything. Covered in the playground's media-tapestry suite.
+
 ### Next
 - Release 0.2.0 (staged; approve on npm), then switch the playground to it.
 
