@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isStorageKey, keyToken, storageKeyFor } from '../src/keys.js';
+import { fileNameOf, isFileName, isLegacyKey, isStorageKey, keyToken, mediaIdOf, storageKeyFor } from '../src/keys.js';
 import {
 	decodeTags,
 	encodeTags,
@@ -61,11 +61,21 @@ describe('focal point', () => {
 });
 
 describe('storage keys', () => {
-	it('allow an optional suffix for replacements, variants and captions', () => {
-		expect(storageKeyFor('m_abcdefghijklmnop', 'jpg', new Date('2026-03-04'))).toBe('2026/03/m_abcdefghijklmnop.jpg');
-		const key = storageKeyFor('m_abcdefghijklmnop', 'webp', new Date('2026-03-04'), `${keyToken()}w960`);
+	it('are file names, with an optional suffix for replacements, variants and captions', () => {
+		expect(storageKeyFor('m_abcdefghijklmnop', 'jpg')).toBe('m_abcdefghijklmnop.jpg');
+		const key = storageKeyFor('m_abcdefghijklmnop', 'webp', `${keyToken()}w960`);
 		expect(isStorageKey(key)).toBe(true);
+		expect(isFileName(key)).toBe(true);
 		expect(keyToken()).toMatch(/^[a-z0-9]{8}$/);
+		expect(mediaIdOf(key)).toBe('m_abcdefghijklmnop');
+	});
+
+	it('still accept keys stored before folders (upload month)', () => {
+		expect(isStorageKey('2026/03/m_abcdefghijklmnop.jpg')).toBe(true);
+		expect(isLegacyKey('2026/03/m_abcdefghijklmnop.jpg')).toBe(true);
+		expect(isLegacyKey('m_abcdefghijklmnop.jpg')).toBe(false);
+		expect(isFileName('2026/03/m_abcdefghijklmnop.jpg')).toBe(false);
+		expect(fileNameOf('2026/03/m_abcdefghijklmnop-x1.vtt')).toBe('m_abcdefghijklmnop-x1.vtt');
 	});
 
 	it.each([
@@ -75,6 +85,12 @@ describe('storage keys', () => {
 		'2026/03/m_abcdefghijklmnop-a.b.jpg',
 		'../2026/03/m_abcdefghijklmnop.jpg',
 		'2026/03/m_abcdefghijklmnop',
+		'photos/m_abcdefghijklmnop.jpg',
+		'/m_abcdefghijklmnop.jpg',
+		'2026/3/m_abcdefghijklmnop.jpg',
+		'm_abcdefghijklmnop.jpg\n',
+		'm_abcdefghijklmnop.jpg/',
+		'.m_abcdefghijklmnop.jpg',
 	])('refuses %s', (key) => {
 		expect(isStorageKey(key)).toBe(false);
 	});

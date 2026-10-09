@@ -11,7 +11,7 @@ uploads (types from file bytes, sanitized SVG, admin-adjustable limits), resized
 variants via sharp, privacy-friendly remote video embeds, a picker and a `<Media>`
 component. [Tapestry](https://github.com/nascencestudio/tapestry) uses it for `media`
 props and images in rich text (it finds this package at runtime; there's no build-time
-coupling). Published as `@nascencestudio/medialibrary` (Nascence Studio, MIT).
+coupling). Folders (0.2.0, [ADR 0100](docs/decisions/0100-folders.md)) are mirrored on disk. Published as `@nascencestudio/medialibrary` (Nascence Studio, MIT).
 
 History: developed inside Tapestry's monorepo until 2026-10-08, then moved here (the user's
 decision, so it's released with provenance from its own repository). Older design records
@@ -38,10 +38,13 @@ are in `docs/decisions/` (copied); Tapestry's devlog has the full history.
 src/
 ├── index.ts            ← plugin entry (options, routes, dashboard pages), exports
 ├── detect.ts, dimensions.ts, svg.ts, remote.ts, settings.ts       ← pure: types from bytes, sizes, SVG sanitizing, YouTube/Vimeo, settings
-├── meta.ts, subtitles.ts, stored.ts, keys.ts, responsive.ts       ← pure (ADR 0019)
-├── runtime/            ← db, storage, receive, images (sharp), api/*, files, server,
+├── meta.ts, subtitles.ts, stored.ts, keys.ts, responsive.ts       ← pure (ADR 0019); keys = file names (ADR 0100)
+├── folders.ts          ← pure: folder names, directory names (slugs), tree rules (ADR 0100)
+├── disk.ts             ← storage layout on disk, root passed in (tested on a temp dir): paths, locate, move, syncFiles
+├── runtime/            ← db, storage, receive, images (sharp), api/* (incl. folders, move), files, server,
+│                         folders-store (folder changes, moving items), sync (disk ↔ database), lock,
 │                         Media.astro, LibraryPage.astro, SettingsPage.astro, settings/variants endpoints
-└── ui/                 ← Preact: Library, details (tags/focal/captions), picker; library.css (loaded on demand)
+└── ui/                 ← Preact: Library, folders (list, bar, select), details (tags/focal/captions), picker; library.css (loaded on demand)
 test/                   ← Vitest; fixtures for every format (generated with sharp/ffmpeg)
 scripts/copy-assets.mjs ← copies .astro/.css/.d.ts into dist/
 ```
@@ -57,6 +60,23 @@ scripts/copy-assets.mjs ← copies .astro/.css/.d.ts into dist/
 | Release | Bump `version`, push, publish a GitHub release `v<version>` (`.github/workflows/release.yml`: **stages** it with provenance via trusted publishing), then a maintainer approves it on npmjs.com (2FA). Never publish locally; never enable "allow npm publish" on the trusted publisher. |
 
 ## Gotchas
+
+- **Folders (ADR 0100):** the database is the truth; the disk follows (one-way, never import files
+  found there). Change order: database first, then disk, inside `withLock`; on any disk failure call
+  `syncUnlocked()` (never `syncNow()` while holding the lock: it would wait for itself). Stored keys
+  are plain file names; a file's location is derived from the item's folder (`folderDir`), never
+  stored. URLs are `/files/<file name>`: never put folder names in URLs.
+- `YYYY/MM/<file name>` keys (before 0.2.0) are still valid input everywhere (`isStorageKey`); the
+  startup sync migrates them. Don't drop that support while sites may still upgrade from 0.1.x.
+- Deleting a folder deletes its contents (subfolders, items, files) only with `confirm` = the folder's
+  name; the dialog and the server compare the same way (NFKC, trimmed, case-insensitive). Never add a
+  way to delete contents without it.
+- Page usage: use `usageByItem(ids)` (one query per 100 items) for lists; `usageOf` per item is for
+  single items only.
+- In the UI, folder actions resolve to success booleans instead of throwing: a rejection that went
+  through a Preact handler chain was reported as uncaught.
+- Thumbnails are `draggable={false}`: a dragged `<img>` carries a *file*, and the upload drop zone
+  uploaded a copy of the image. Internal drags use `ITEMS_DRAG_TYPE` and the drop zone ignores them.
 
 - Never `import sharp` statically in runtime code: a server build bundles this package and a
   bundled sharp can't find its native binary. `runtime/images.ts` resolves it from the

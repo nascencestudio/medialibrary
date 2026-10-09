@@ -23,6 +23,6 @@ export const DELETE: APIRoute = async (context) => {
 	const track = tracks.find((t) => t.id === trackId);
 	if (!track) return error(404, 'Not found');
 	const updated = await updateRow(id, { tracks: JSON.stringify(tracks.filter((t) => t.id !== trackId)) });
-	await removeFiles([track.storageKey]);
+	await removeFiles(row.folderId ?? null, [track.storageKey]);
 	return updated ? json({ item: toItem(updated) }) : error(404, 'Not found');
 };

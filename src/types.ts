@@ -48,6 +48,19 @@ export interface MediaItem {
 	variants: ImageVariant[];
 	/** Images: a `srcset` with the variants and the original, or null when there are no variants. */
 	srcset: string | null;
+	/** The folder the item is in (`f_…`), or null for the top level. */
+	folderId: string | null;
+}
+
+/** A folder as the API returns it. */
+export interface MediaFolder {
+	id: string;
+	parentId: string | null;
+	name: string;
+	/** Its directory name on disk (unique among its siblings). */
+	slug: string;
+	/** Items directly in the folder. */
+	itemCount: number;
 }
 
 /** A caption or subtitle track of an uploaded video. */

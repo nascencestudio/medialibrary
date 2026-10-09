@@ -23,7 +23,7 @@ import { keyToken, storageKeyFor } from '../keys.js';
 import { MAX_INPUT_PIXELS, RESIZABLE_MIMES, variantWidths } from '../responsive.js';
 import type { StoredVariant } from '../stored.js';
 import { getRow, type MediaRow, updateRow, variantsOf } from './db.js';
-import { pathFor, removeFiles, writeFileAt } from './storage.js';
+import { locateFile, removeFiles, writeFileAt } from './storage.js';
 
 let sharpModule: typeof SharpType | null | undefined;
 
@@ -62,20 +62,20 @@ export async function addVariants(row: MediaRow): Promise<MediaRow> {
 	if (!sharp) return row;
 	const made: StoredVariant[] = [];
 	try {
-		const source = pathFor(row.storageKey);
+		const source = await locateFile(row.folderId ?? null, row.storageKey);
+		if (!source) throw new Error('the image file is missing');
 		const meta = await decode(sharp, source).metadata();
 		// Oriented size: a portrait phone photo is stored landscape with an EXIF rotation.
 		const width = meta.autoOrient?.width ?? meta.width ?? row.width;
 		const height = meta.autoOrient?.height ?? meta.height ?? row.height;
-		const now = new Date();
 		for (const target of variantWidths(width ?? null, config.imageWidths)) {
 			const { data, info } = await decode(sharp, source)
 				.autoOrient()
 				.resize({ width: target, withoutEnlargement: true })
 				.webp({ quality: 80, effort: 4 })
 				.toBuffer({ resolveWithObject: true });
-			const storageKey = storageKeyFor(row.id, 'webp', now, `${keyToken(6)}w${info.width}`);
-			await writeFileAt(storageKey, data);
+			const storageKey = storageKeyFor(row.id, 'webp', `${keyToken(6)}w${info.width}`);
+			await writeFileAt(row.folderId ?? null, storageKey, data);
 			made.push({ width: info.width, height: info.height, mime: 'image/webp', storageKey });
 		}
 		const old = variantsOf(row).map((v) => v.storageKey);
@@ -84,11 +84,14 @@ export async function addVariants(row: MediaRow): Promise<MediaRow> {
 			width: width ?? row.width,
 			height: height ?? row.height,
 		});
-		await removeFiles(old);
+		await removeFiles(row.folderId ?? null, old);
 		return updated ?? row;
 	} catch (cause) {
 		console.warn(`[medialibrary] could not make resized copies of ${row.id}`, cause);
-		await removeFiles(made.map((v) => v.storageKey));
+		await removeFiles(
+			row.folderId ?? null,
+			made.map((v) => v.storageKey),
+		);
 		return (await getRow(row.id)) ?? row;
 	}
 }

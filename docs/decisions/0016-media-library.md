@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-10-06
 
+> **Update (0.2.0):** the storage layout and file URLs changed with folders: files live in their folder's directory and are served at `/files/<file name>` ([ADR 0100](0100-folders.md)). Old URLs keep working.
+
 ## Context
 
 The user wanted Drupal's Media Library: upload images, video, audio and

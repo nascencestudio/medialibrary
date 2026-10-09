@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-10-06
 
+> **Update (0.2.0):** keys are now plain file names (`<id>-<token>.<ext>`), without the `YYYY/MM/` prefix ([ADR 0100](0100-folders.md)).
+
 ## Context
 
 The media library (ADR 0016) listed follow-ups: replacing a file, folders/tags,

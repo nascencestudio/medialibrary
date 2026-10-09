@@ -1,6 +1,6 @@
 {
   "name": "@nascencestudio/medialibrary",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "A media library for StudioCMS: upload, browse and reuse images, video, audio, documents and remote videos",
   "license": "MIT",
   "author": "Nascence Studio",
