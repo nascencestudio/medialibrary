@@ -17,7 +17,7 @@ reuse images, video, audio, documents and remote videos (YouTube, Vimeo).
 
 ## Requirements
 
-- Node ≥ 22.12, Astro 7, StudioCMS 0.6, an on-demand (SSR) Astro adapter
+- Node ≥ 22.12, Astro 7, StudioCMS 0.6 or 0.7, an on-demand (SSR) Astro adapter
 - A writable directory for the files (default `./data/media`, or `MEDIA_DIR`)
 
 ## Install
