@@ -47,7 +47,7 @@
     "studiocms": "^0.6.0 || ^0.7.0"
   },
   "dependencies": {
-    "@preact/signals": "2.11.3",
+    "@preact/signals": "2.11.2",
     "kysely": "0.29.7",
     "preact": "10.29.8",
     "sharp": "0.35.5",
