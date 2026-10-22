@@ -170,13 +170,13 @@ importers:
   .:
     dependencies:
       '@preact/signals':
-        specifier: 2.11.2
+        specifier: ^2.11.2
         version: 2.11.2(preact@10.29.8)
       kysely:
         specifier: 0.29.7
         version: 0.29.7
       preact:
-        specifier: 10.29.8
+        specifier: ^10.29.8
         version: 10.29.8
       sharp:
         specifier: 0.35.5
