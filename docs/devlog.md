@@ -90,3 +90,8 @@ monorepo (npm provenance requires publishing each package from its own repositor
 
 ### Next
 - Push, configure npm trusted publishing, release 0.1.0. Tapestry's repo then installs it from npm.
+
+## 2026-10-30: 0.2.1 prepared
+
+- Version 0.2.1: StudioCMS 0.7 alongside 0.6 (peer range), `preact`/`@preact/signals` as ranges (Tapestry ADR
+  0044), current dev tools, and an audit refresh (undici 7.30.1 / 8.12.3). Released from GitHub (the user).
