@@ -87,7 +87,7 @@ scripts/copy-assets.mjs ← copies .astro/.css/.d.ts into dist/
   cached as immutable). JSON columns (`tracks`, `variants`) are re-validated on read.
 - Upload limits and the SVG switch are **runtime** settings (`loadMediaSettings()`); options are
   defaults and the ceiling. Behind a proxy, its body limit must be at least `maxUploadSize`.
-- StudioCMS `usePluginData()` can't save in 0.6.1; use `SDKCoreJs.dbService.db` (Kysely).
+- StudioCMS `usePluginData()` can't save in 0.6.1 or 0.7.0; use `SDKCoreJs.dbService.db` (Kysely).
 - Never import CSS from browser code (Astro's script-to-page mapping puts it on every page):
   `ui/styles.ts` loads `library.css` on demand.
 - StudioCMS's primary color is light purple in its dark theme: text on it uses `--text-inverted`.

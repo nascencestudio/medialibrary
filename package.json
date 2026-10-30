@@ -1,6 +1,6 @@
 {
   "name": "@nascencestudio/medialibrary",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A media library for StudioCMS: upload, browse and reuse images, video, audio, documents and remote videos",
   "license": "MIT",
   "author": "Nascence Studio",
@@ -44,22 +44,22 @@
   },
   "peerDependencies": {
     "astro": "^7.0.0",
-    "studiocms": "^0.6.0"
+    "studiocms": "^0.6.0 || ^0.7.0"
   },
   "dependencies": {
-    "@preact/signals": "2.11.2",
-    "kysely": "0.29.6",
-    "preact": "10.29.8",
+    "@preact/signals": "^2.11.2",
+    "kysely": "0.29.7",
+    "preact": "^10.29.8",
     "sharp": "0.35.5",
     "ultrahtml": "1.7.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.14",
+    "@biomejs/biome": "2.5.15",
     "@types/node": "22.20.4",
-    "astro": "7.3.5",
-    "studiocms": "0.6.1",
+    "astro": "7.4.1",
+    "studiocms": "0.7.0",
     "typescript": "6.0.3",
-    "vitest": "5.0.3"
+    "vitest": "5.0.5"
   },
   "engines": {
     "node": ">=22.12.0"
