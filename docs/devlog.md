@@ -4,6 +4,15 @@ Newest first. What changed, what was learned, what's next.
 
 ---
 
+## 2026-11-26: 0.2.3, Preact 11
+
+- `preact` is `^10.29.8 || ^11.2.0` (Tapestry ADR 0048): sites on Preact 10 keep working, new installs get 11, and
+  the editor's packages still share one copy (Tapestry ADR 0044). The lockfile runs 11.2.0. No code changes were needed.
+- Verified: typecheck, unit tests and build on 11.2.0; the playground's 32 e2e suites and budget with Tapestry, the
+  media library, tapestry-seo and tapestry-menus as `file:` builds on one Preact 11.2.0.
+- minimatch GHSA-g3hv-75wg-m249 fixed (`@ts-morph/common` 0.29.1 → minimatch 11.0.9, with provenance), ignore
+  removed; missed in 0.2.2, which came before the fix. braces still unpatched: re-check 2026-12-26.
+
 ## 2026-11-23: 0.2.2 prepared (dependency refresh)
 
 - Runtime: `kysely` 0.29.7 → 0.29.9, `@preact/signals` ^2.11.2 → ^2.11.4.
