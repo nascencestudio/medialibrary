@@ -2,8 +2,8 @@
 #
 # - GitHub Actions: keeps the full-SHA pins in .github/workflows current.
 # - npm (pnpm, from pnpm-lock.yaml): one weekly PR with minor and patch updates grouped;
-#   majors separately (Preact 11 and TypeScript 7 are held back: Astro's Preact peer and
-#   TypeScript tooling).
+#   majors separately (TypeScript 7 is held back:
+#   `astro check` and Astro's TypeScript tooling support only 6).
 # - Cooldown matches pnpm-workspace.yaml's minimumReleaseAge (3 days). CI installs with the
 #   frozen lockfile, so pnpm's trust and build-script policies apply to every PR.
 version: 2
